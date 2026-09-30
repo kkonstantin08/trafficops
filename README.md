@@ -43,8 +43,8 @@ Bootstrap отключает swap для kubelet, устанавливает т�
 ```bash
 sudo apt-get update
 sudo apt-get install -y git make curl
-git clone <URL публичного репозитория>
-cd "МТС Hakaton"
+git clone https://github.com/kkonstantin08/trafficops.git
+cd trafficops
 make bootstrap
 make deploy
 make verify
@@ -52,7 +52,7 @@ make verify
 
 Для текущей Ubuntu 22.04 VM вместо `make bootstrap` используйте `make bootstrap-dev`. Этот явный dev режим не подтверждает требование Ubuntu 24.04.
 
-Замените `<URL публичного репозитория>` адресом опубликованного репозитория. Команды `make deploy` и `make verify` используют отдельный kubeconfig `~/.kube/trafficops.conf` и не меняют существующий `~/.kube/config`. При первом deploy создаётся пароль панели; он хранится в `~/.config/trafficops/admin-password`, а его PBKDF2 hash попадает в Kubernetes Secret. Файлы создаются вне Git с режимом `0600`. Сохраните пароль, он не выводится в терминал. При уже существующем Secret deploy не меняет учётные данные.
+Команды `make deploy` и `make verify` используют отдельный kubeconfig `~/.kube/trafficops.conf` и не меняют существующий `~/.kube/config`. При первом deploy создаётся пароль панели; он хранится в `~/.config/trafficops/admin-password`, а его PBKDF2 hash попадает в Kubernetes Secret. Файлы создаются вне Git с режимом `0600`. Сохраните пароль, он не выводится в терминал. При уже существующем Secret deploy не меняет учётные данные.
 
 `make deploy` собирает образ на ARM64 VM, импортирует его в namespace `k8s.io` containerd, ждёт готовности Deployments и Envoy Gateway, создаёт начальные Gateway-ресурсы и проверяет маршрут. Повторный запуск безопасен: он сохраняет уже существующие веса HTTPRoute и не перезапускает приложение без изменения исходников. Bootstrap также безопасен для повторного запуска на кластере, созданном этим проектом.
 
@@ -138,6 +138,6 @@ Controller работает только с фиксированными объ�
 
 ## Инструкция и комплект сдачи
 
-Подробный порядок действий в локальной UTM VM: [docs/verification.md](docs/verification.md). [Источник черновика паспорта](docs/passport.md) и [PDF](output/pdf/TrafficOps-passport-draft.pdf) описывают текущую реализацию и открытые проверки. Черновик не является готовым комплектом сдачи: публичная ссылка, Ubuntu live-приёмка и сведения участника ещё не внесены.
+Подробный порядок действий в локальной UTM VM: [docs/verification.md](docs/verification.md). [Источник черновика паспорта](docs/passport.md) и [PDF](output/pdf/TrafficOps-passport-draft.pdf) описывают текущую реализацию и открытые проверки. Черновик не является готовым комплектом сдачи: Ubuntu live-приёмка и сведения участника ещё не внесены. Публичный репозиторий: [https://github.com/kkonstantin08/trafficops](https://github.com/kkonstantin08/trafficops).
 
 CI запускает unit/syntax/schema checks и сборку приложения для AMD64/ARM64 без публикации: [.github/workflows/ci.yml](.github/workflows/ci.yml). Локально схемы всех 36 ресурсов проверены; workflow на GitHub и multiarch build пока не выполнялись. Итоговые независимые результаты: [evidence оркестратора](docs/evidence/orchestrator-local-2026-09-30.md).

@@ -20,18 +20,19 @@ df -h /
 
 ## 2. Получение проекта и запуск
 
-Публичный адрес репозитория ещё не задан. До публикации скопируйте каталог проекта в VM; после публикации клонируйте репозиторий и перейдите в его корень.
+Клонируйте [публичный репозиторий TrafficOps](https://github.com/kkonstantin08/trafficops). Для текущей VM Ubuntu 22.04 выполните:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git make curl
-# Перейдите в каталог, содержащий Makefile и scripts/.
-make bootstrap
+git clone https://github.com/kkonstantin08/trafficops.git
+cd trafficops
+make bootstrap-dev
 make deploy
 make verify
 ```
 
-Для тестов на текущей Ubuntu 22.04 ARM64 VM замените только первую команду на `make bootstrap-dev`. Этот явный режим ставит закреплённые ARM64 пакеты Docker для Jammy; `make bootstrap` по-прежнему принимает только Ubuntu 24.04. Дальнейшие `make deploy` и `make verify` те же. Установку в VM здесь не выполняли.
+Этот явный режим ставит закреплённые ARM64 пакеты Docker для Jammy. Для приёмки на Ubuntu 24.04 используйте в той же последовательности `make bootstrap` вместо `make bootstrap-dev`. Дальнейшие `make deploy` и `make verify` те же. Установку в VM здесь не выполняли.
 
 Не выполняйте эти команды на Mac. Сборка образа происходит внутри ARM64 VM. `make deploy` завершается проверкой, поэтому отдельный `make verify` позволяет сохранить результат повторного запроса.
 

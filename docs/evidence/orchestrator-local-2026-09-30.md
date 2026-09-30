@@ -51,3 +51,9 @@ Ruby YAML parser успешно разобрал `base.yaml`, `envoy-proxy.yaml`
 После `cdd3324` оркестратор прочитал CLI и README, самостоятельно выполнил `python3 scripts/verify-scenario.py --help`, `python3 -m py_compile scripts/verify-scenario.py`, `python3 -m unittest tests.test_verify_scenario -v` (1/1), `make -n verify-scenario` и `git diff --check`: exit 0. Скрипт хранится как executable (Git mode 100755). Итоговый полный набор: `Ran 29 tests in 8.010s`, `OK`.
 
 Проверка cleanup доказывает попытку всех действий восстановления после первого отказа, но не фактическое восстановление кластера. Live-сценарий не выполнялся. Исходники сохраняются локально в ветке trafficops-implementation; main и внешняя публикация пока не обновлены. Перед приёмкой нужен вывод ОС/архитектуры/vCPU/RAM из VM пользователя.
+
+## Ubuntu 22.04 dev mode
+
+После `4e714a1` оркестратор прочитал изменения bootstrap/versions/Makefile и самостоятельно выполнил full unittest: `Ran 31 tests in 8.041s`, `OK`; shell syntax, dev-target dry run и diff check: exit 0. Отдельно прочитан официальный Docker Jammy ARM64 Packages.gz: все четыре закреплённых package/version/architecture найдены. Это проверка выбора пакетов и локального кода, не установка в VM. Фактическая Ubuntu 22.04.5 и выбор пользователя зафиксированы в vm-preflight.md; DEP-001 остаётся открытым.
+
+Пользователь явно разрешил публикацию на GitHub перед clone в VM. Создан публичный репозиторий https://github.com/kkonstantin08/trafficops; исходники подготовлены для основной ветки main. Перед push просмотрен список tracked файлов и история проверена на шаблоны private keys/GitHub/API tokens — совпадений нет. Runtime credentials генерируются вне Git. Результат push, публичного clone и CI будет записан после выполнения.
