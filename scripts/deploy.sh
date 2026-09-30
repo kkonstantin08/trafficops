@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck disable=SC1091
+source "$ROOT_DIR/deploy/versions.env"
+export KUBECONFIG=${KUBECONFIG:-"$HOME/.kube/trafficops.conf"}
+fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+for cmd in kubectl helm docker ctr; do command -v "$cmd" >/dev/null || fail "$cmd is required; run make bootstrap first"; done
+[[ -r $KUBECONFIG ]] || fail "kubeconfig not found: $KUBECONFIG (run make bootstrap first)"
+kubectl cluster-info >/dev/null || fail 'Kubernetes API is unavailable'
+
+SUDO=()
+[[ $EUID -eq 0 ]] || SUDO=(sudo)
+printf 'Building %s from the repository Dockerfile...\n' "$DEMO_IMAGE"
+"${SUDO[@]}" docker build --tag "$DEMO_IMAGE" --file "$ROOT_DIR/Dockerfile" "$ROOT_DIR"
+"${SUDO[@]}" docker save "$DEMO_IMAGE" | "${SUDO[@]}" ctr --namespace k8s.io images import -
+
+kubectl apply -f "$ROOT_DIR/deploy/base.yaml"
+source_sha=$(cat "$ROOT_DIR/Dockerfile" "$ROOT_DIR/demo/app.py" "$ROOT_DIR/requirements.lock" | sha256sum | awk '{print $1}')
+for deployment in demo-v1 demo-v2; do
+  current_sha=$(kubectl get "deployment/$deployment" -n trafficops \
+    -o go-template='{{index .metadata.annotations "trafficops.io/source-sha256"}}' 2>/dev/null || true)
+  if [[ -n $current_sha && $current_sha != "$source_sha" ]]; then
+    kubectl rollout restart "deployment/$deployment" -n trafficops
+  fi
+  kubectl annotate "deployment/$deployment" -n trafficops \
+    "trafficops.io/source-sha256=$source_sha" --overwrite
+  kubectl rollout status "deployment/$deployment" -n trafficops --timeout=180s
+done
+
+helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
+  --version "v$ENVOY_GATEWAY_VERSION" \
+  --namespace envoy-gateway-system --create-namespace \
+  --wait --timeout=300s
+kubectl wait --for=condition=Available deployment/envoy-gateway \
+  -n envoy-gateway-system --timeout=180s
+kubectl apply -f "$ROOT_DIR/deploy/envoy-proxy.yaml"
+kubectl apply -f "$ROOT_DIR/deploy/gateway.yaml"
+if ! kubectl get httproute/demo-route -n trafficops -o name >/dev/null 2>&1; then
+  kubectl apply -f "$ROOT_DIR/deploy/route.yaml"
+else
+  echo 'HTTPRoute demo-route already exists; preserving its current traffic weights.'
+fi
+kubectl wait --for=condition=Accepted gatewayclass/trafficops --timeout=120s
+kubectl wait --for=condition=Accepted gateway/trafficops -n trafficops --timeout=120s
+kubectl wait --for=condition=Programmed gateway/trafficops -n trafficops --timeout=120s
+kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'=True \
+  httproute/demo-route -n trafficops --timeout=120s
+kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}'=True \
+  httproute/demo-route -n trafficops --timeout=120s
+
+"$ROOT_DIR/scripts/verify.sh"

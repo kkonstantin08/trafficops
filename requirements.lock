@@ -1,0 +1,2 @@
+# Runtime dependency lock: the demo application uses only Python 3.12 stdlib.
+# Its exact interpreter image is pinned by digest in demo/Dockerfile.
