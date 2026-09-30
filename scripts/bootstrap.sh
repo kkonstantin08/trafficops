@@ -17,12 +17,27 @@ assert_pkg_version() {
   installed=$(pkg_version "$name")
   [[ -z $installed || $installed == "$wanted" ]] || fail "$name $installed is installed; expected $wanted. Refusing to replace an existing runtime."
 }
+select_platform_packages() {
+  case "${VERSION_ID:-}:$1" in
+    24.04:) DOCKER_UBUNTU_CODENAME=noble ;;
+    22.04:--dev-ubuntu-22.04)
+      DOCKER_UBUNTU_CODENAME=jammy
+      DOCKER_CE_VERSION=$DOCKER_CE_VERSION_JAMMY
+      DOCKER_BUILDX_VERSION=$DOCKER_BUILDX_VERSION_JAMMY
+      CONTAINERD_VERSION=$CONTAINERD_VERSION_JAMMY
+      ;;
+    22.04:) fail 'Ubuntu 22.04 is supported only in development mode; run make bootstrap-dev' ;;
+    *) fail 'requires Ubuntu 24.04; Ubuntu 22.04 is accepted only with the explicit development flag' ;;
+  esac
+}
 
 need_root
 [[ -r /etc/os-release ]] || fail '/etc/os-release is missing'
 # shellcheck disable=SC1091
 source /etc/os-release
-[[ ${ID:-} == ubuntu && ${VERSION_ID:-} == 24.04 ]] || fail 'requires Ubuntu 24.04'
+[[ ${ID:-} == ubuntu ]] || fail 'requires Ubuntu Linux'
+[[ $# -le 1 ]] || fail 'usage: bootstrap.sh [--dev-ubuntu-22.04]'
+select_platform_packages "${1:-}"
 [[ $(dpkg --print-architecture) == arm64 ]] || fail 'this build is pinned and verified for ARM64'
 cpu_count=$(nproc)
 memory_kib=$(awk '/MemTotal:/ { print $2 }' /proc/meminfo)
@@ -71,7 +86,9 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl gpg apt-transport-https python3
+prerequisites=(ca-certificates curl gpg apt-transport-https python3)
+[[ $DOCKER_UBUNTU_CODENAME != jammy ]] || prerequisites+=(python3-tomli)
+apt-get install -y "${prerequisites[@]}"
 install -m 0755 -d /etc/apt/keyrings
 curl --fail --location --silent --show-error --max-time 30 https://pkgs.k8s.io/core:/stable:/v1.36/deb/Release.key |
   gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -82,7 +99,7 @@ EOF
 curl --fail --location --silent --show-error --max-time 30 https://download.docker.com/linux/ubuntu/gpg |
   gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
 chmod 0644 /etc/apt/keyrings/docker.gpg
-printf 'deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable\n' \
+printf 'deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' "$DOCKER_UBUNTU_CODENAME" \
   >/etc/apt/sources.list.d/docker.list
 apt-get update
 apt-get install -y \
@@ -101,7 +118,10 @@ install -m 0755 -d /etc/containerd
 if (( containerd_config_preexisting )); then
   python3 - "$containerd_config" "$pause_image" <<'PY'
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 path, expected_pause = sys.argv[1:]
 try:

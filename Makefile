@@ -1,7 +1,10 @@
-.PHONY: bootstrap deploy verify verify-scenario test build
+.PHONY: bootstrap bootstrap-dev deploy verify verify-scenario test build
 
 bootstrap:
 	sudo ./scripts/bootstrap.sh
+
+bootstrap-dev:
+	sudo ./scripts/bootstrap.sh --dev-ubuntu-22.04
 
 deploy:
 	./scripts/deploy.sh

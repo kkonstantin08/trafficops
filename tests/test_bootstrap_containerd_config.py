@@ -60,6 +60,35 @@ class ContainerdBootstrapConfigTest(unittest.TestCase):
             self.assertIn("disables CRI", result.stderr)
             self.assertEqual(path.read_text(), invalid)
 
+            force_tomli = """
+import sys, tomllib
+class BlockTomllib:
+    def find_spec(self, fullname, *args):
+        if fullname == "tomllib":
+            raise ModuleNotFoundError(fullname)
+sys.meta_path.insert(0, BlockTomllib())
+sys.modules["tomli"] = tomllib
+del sys.modules["tomllib"]
+code = sys.argv[1]
+sys.argv = [code, *sys.argv[2:]]
+exec(code, {})
+"""
+            path.write_text(template)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    force_tomli,
+                    validator,
+                    str(path),
+                    PAUSE_IMAGE,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
