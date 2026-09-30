@@ -51,4 +51,42 @@ kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted"
 kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}'=True \
   httproute/demo-route -n trafficops --timeout=120s
 
+obs_node=$(kctl get nodes -o jsonpath='{.items[0].metadata.name}')
+[[ -n $obs_node ]] || fail 'Kubernetes node name is unavailable for local observability volumes'
+kctl label node "$obs_node" trafficops.io/observability-node=true --overwrite
+SUDO=()
+[[ $EUID -eq 0 ]] || SUDO=(sudo)
+"${SUDO[@]}" install -d -o 65534 -g 65534 -m 0750 /var/lib/trafficops/prometheus
+"${SUDO[@]}" install -d -m 0755 /var/lib/trafficops/fluentd/logs /var/lib/trafficops/fluentd/buffer
+
+observability_manifest=$(mktemp)
+trap 'rm -f "$observability_manifest"' EXIT
+sed \
+  -e "s|__PROMETHEUS_IMAGE__|$PROMETHEUS_IMAGE|g" \
+  -e "s|__FLUENTD_IMAGE__|$FLUENTD_IMAGE|g" \
+  -e "s|__NODE_EXPORTER_IMAGE__|$NODE_EXPORTER_IMAGE|g" \
+  -e "s|__KUBE_STATE_METRICS_IMAGE__|$KUBE_STATE_METRICS_IMAGE|g" \
+  "$ROOT_DIR/deploy/observability.yaml" >"$observability_manifest"
+kctl apply -f "$observability_manifest"
+
+apply_config() {
+  local name=$1 file=$2 workload=$3 hash current
+  hash=$(sha256sum "$file" | awk '{print $1}')
+  current=$(kctl get "$workload" -n observability \
+    -o go-template='{{index .spec.template.metadata.annotations "trafficops.io/config-sha256"}}' 2>/dev/null || true)
+  kctl create configmap "$name" -n observability --from-file="$file" \
+    --dry-run=client -o yaml | kctl apply -f -
+  if [[ $current != "$hash" ]]; then
+    kctl patch "$workload" -n observability --type=merge \
+      -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"trafficops.io/config-sha256\":\"$hash\"}}}}}"
+  fi
+}
+apply_config prometheus-config "$ROOT_DIR/deploy/prometheus.yml" deployment/prometheus
+apply_config fluentd-config "$ROOT_DIR/deploy/fluent.conf" daemonset/fluentd
+
+kubectl --request-timeout=180s rollout status deployment/prometheus -n observability --timeout=180s
+kubectl --request-timeout=180s rollout status deployment/kube-state-metrics -n observability --timeout=180s
+kubectl --request-timeout=180s rollout status daemonset/node-exporter -n observability --timeout=180s
+kubectl --request-timeout=180s rollout status daemonset/fluentd -n observability --timeout=180s
+
 "$ROOT_DIR/scripts/verify.sh"

@@ -46,9 +46,10 @@ node_port=$(kctl get service "$service" -n envoy-gateway-system \
   -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}')
 [[ $node_port == 30080 ]] || fail "expected Envoy HTTP NodePort 30080, got ${node_port:-none}"
 
-marker="verify-$(date +%s)"
+marker="verify-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 url="http://${node_ip}:${node_port}/demo/region/east?request_id=${marker}&run_id=stage1"
 last_status=''
+response_version=''
 for attempt in $(seq 1 12); do
   body=$(mktemp)
   last_status=$(curl --silent --show-error --max-time 5 -o "$body" -w '%{http_code}' \
@@ -67,17 +68,119 @@ assert actual.get("run_id") == "stage1"
 PY
   then
     response_version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$body")
-    app_logs=$(kctl logs "deployment/demo-$response_version" -n trafficops --tail=100)
-    grep -F '"event":"access"' <<<"$app_logs" | grep -Fq "\"request_id\":\"$marker\"" || {
-      rm -f "$body"
-      fail "request marker $marker was not found in the $response_version access log"
-    }
     rm -f "$body"
-    printf 'Gateway request and access log verified: HTTP %s, version %s, request_id %s\n' \
-      "$last_status" "$response_version" "$marker"
-    exit 0
+    break
   fi
   rm -f "$body"
   sleep 5
 done
-fail "Gateway request did not return HTTP 200 with JSON matching the current route weights within 60 seconds (last HTTP status: ${last_status:-no response})"
+[[ -n $response_version ]] || fail "Gateway request did not return HTTP 200 with JSON matching current route weights within 60 seconds (last HTTP status: ${last_status:-no response})"
+printf 'Gateway response verified: HTTP %s, version %s, request_id %s\n' \
+  "$last_status" "$response_version" "$marker"
+
+find_fluentd_marker() {
+  local started=$SECONDS row
+  while ((SECONDS - started < 30)); do
+    row=$(timeout 3s kubectl --request-timeout=2s exec -n observability daemonset/fluentd -- \
+      /bin/sh -c 'find /logs -maxdepth 1 -type f -name "trafficops.*.log" -mmin -2 -print0 | xargs -0 -r grep -hF -m1 -- "$1" 2>/dev/null | head -n 1' \
+      sh "$marker" 2>/dev/null || true)
+    if [[ -n $row ]] && printf '%s\n' "$row" | PYTHONPATH="$ROOT_DIR" python3 -c \
+      'import sys; from scripts.find_log_marker import record_matches; sys.exit(0 if record_matches(sys.stdin.read(), sys.argv[1], sys.argv[2]) else 1)' \
+      "$marker" "$response_version"; then
+      printf 'Fluentd log verified within 30 seconds: request_id %s, version %s\n' \
+        "$marker" "$response_version"
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+find_fluentd_marker || fail "request_id $marker version $response_version was not found in collected Fluentd logs within 30 seconds"
+
+prom_forward_log=$(mktemp)
+prometheus_payload=$(mktemp)
+prometheus_timestamps=$(mktemp)
+app_metric_payload=$(mktemp)
+app_metric_timestamp=$(mktemp)
+timeout 90s kubectl --request-timeout=10s port-forward -n observability \
+  service/prometheus 19090:9090 --address=127.0.0.1 >"$prom_forward_log" 2>&1 &
+prom_forward_pid=$!
+cleanup_prometheus_forward() {
+  kill "$prom_forward_pid" 2>/dev/null || true
+  rm -f "$prom_forward_log" "$prometheus_payload" "$prometheus_timestamps" \
+    "$app_metric_payload" "$app_metric_timestamp"
+}
+trap cleanup_prometheus_forward EXIT
+
+query="trafficops_http_requests_total{version=\"$response_version\",status=\"200\"}"
+request_timestamp_query="timestamp($query)"
+prom_started=$SECONDS
+prom_verified=false
+while ((SECONDS - prom_started < 60)); do
+  if curl --silent --show-error --max-time 3 \
+    'http://127.0.0.1:19090/api/v1/query?query=up' -o "$prometheus_payload" 2>/dev/null \
+    && curl --silent --show-error --max-time 3 --get \
+      --data-urlencode 'query=timestamp(up)' 'http://127.0.0.1:19090/api/v1/query' \
+      -o "$prometheus_timestamps" 2>/dev/null \
+    && curl --silent --show-error --max-time 3 --get \
+      --data-urlencode "query=$query" 'http://127.0.0.1:19090/api/v1/query' \
+      -o "$app_metric_payload" 2>/dev/null \
+    && curl --silent --show-error --max-time 3 --get \
+      --data-urlencode "query=$request_timestamp_query" 'http://127.0.0.1:19090/api/v1/query' \
+      -o "$app_metric_timestamp" 2>/dev/null \
+    && python3 - "$prometheus_payload" "$prometheus_timestamps" "$app_metric_payload" \
+      "$app_metric_timestamp" "$response_version" <<'PY' >/dev/null 2>&1
+import json
+import sys
+import time
+
+def results(path):
+    payload = json.load(open(path, encoding="utf-8"))
+    if payload.get("status") != "success":
+        raise ValueError("Prometheus query failed")
+    return payload["data"]["result"]
+
+now = time.time()
+up = results(sys.argv[1])
+up_timestamps = results(sys.argv[2])
+required = {
+    "trafficops-demo-v1",
+    "trafficops-demo-v2",
+    "envoy-proxy",
+    "node-exporter",
+    "kube-state-metrics",
+}
+healthy = set()
+for sample in up:
+    if sample["value"][1] == "1":
+        healthy.add(sample["metric"].get("job"))
+fresh = {
+    sample["metric"].get("job")
+    for sample in up_timestamps
+    if -5 <= now - float(sample["value"][1]) <= 30
+}
+if not required <= healthy or not required <= fresh:
+    raise ValueError("Prometheus targets are missing, down, or stale")
+app_samples = results(sys.argv[3])
+if not any(
+    sample["metric"].get("version") == sys.argv[5]
+    and float(sample["value"][1]) > 0
+    for sample in app_samples
+):
+    raise ValueError("fresh application request metric is missing")
+app_timestamps = results(sys.argv[4])
+if not any(
+    sample["metric"].get("version") == sys.argv[5]
+    and -5 <= now - float(sample["value"][1]) <= 30
+    for sample in app_timestamps
+):
+    raise ValueError("application request metric is stale")
+PY
+  then
+    prom_verified=true
+    break
+  fi
+  sleep 2
+done
+[[ $prom_verified == true ]] || fail 'Prometheus did not expose fresh, healthy samples for both apps, Envoy, node-exporter, kube-state-metrics, and the verified request within 60 seconds'
+printf 'Prometheus verified: fresh up samples for all five jobs and HTTP 200 counter for %s\n' "$response_version"

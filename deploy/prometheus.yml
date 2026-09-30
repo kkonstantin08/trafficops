@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 10s
+  scrape_timeout: 5s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: trafficops-demo-v1
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["demo-v1.trafficops.svc.cluster.local:8080"]
+        labels:
+          version: v1
+
+  - job_name: trafficops-demo-v2
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["demo-v2.trafficops.svc.cluster.local:8080"]
+        labels:
+          version: v2
+
+  - job_name: envoy-proxy
+    metrics_path: /stats/prometheus
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [envoy-gateway-system]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_gateway_envoyproxy_io_owning_gateway_namespace]
+        action: keep
+        regex: trafficops
+      - source_labels: [__meta_kubernetes_pod_label_gateway_envoyproxy_io_owning_gateway_name]
+        action: keep
+        regex: trafficops
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: $1:19001
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter.observability.svc.cluster.local:9100"]
+
+  - job_name: kube-state-metrics
+    static_configs:
+      - targets: ["kube-state-metrics.observability.svc.cluster.local:8080"]

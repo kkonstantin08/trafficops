@@ -9,16 +9,16 @@
 | K8S-001 | API и узлы кластера доступны | частично | [bootstrap](../../scripts/bootstrap.sh) | [локальная проверка, VM не запускалась](../evidence/stage1-local-2026-09-30.md) |
 | APP-001 | HTTP-приложение запущено в кластере | частично | [Deployment и Service](../../deploy/base.yaml) | [локальная проверка, VM не запускалась](../evidence/stage1-local-2026-09-30.md) |
 | APP-002 | Статус и ответ совпадают с ожидаемыми | частично | [приложение](../../demo/app.py), [тесты](../../tests/test_demo.py) | [5 локальных unittest прошли](../evidence/stage1-local-2026-09-30.md) |
-| APP-003 | Контрольный запрос есть в access-логе приложения | частично | [JSON stdout-логи](../../demo/app.py), [проверка маркера](../../scripts/verify.sh) | [локальный тест логов; Fluentd ещё не установлен](../evidence/stage1-local-2026-09-30.md) |
+| APP-003 | Контрольный запрос есть в access-логе приложения | частично | [JSON stdout-логи](../../demo/app.py), [проверка маркера](../../scripts/verify.sh) | [локальные тесты; сквозная проверка Fluentd на VM не выполнена](../evidence/stage2-local-2026-09-30.md) |
 | APP-004 | Образ доступен публично либо собирается из репозитория | частично | [Dockerfile](../../Dockerfile) | [ARM64 base image подтверждён; сборка приложения заблокирована недоступным Docker daemon](../evidence/stage1-local-2026-09-30.md) |
 | GW-001 | Open-source контроллер установлен и готов | частично | [установка Envoy Gateway](../../scripts/deploy.sh) | [версия и ARM64 образы проверены; контроллер не запускался](../evidence/stage1-local-2026-09-30.md) |
 | GW-002 | GatewayClass работает либо обоснованно не нужен | частично | [GatewayClass и параметры EnvoyProxy](../../deploy/envoy-proxy.yaml) | [манифест YAML проверен; статус кластера не получен](../evidence/stage1-local-2026-09-30.md) |
 | GW-003 | Gateway и HTTPRoute приняты и ведут к Service | частично | [Gateway](../../deploy/gateway.yaml), [HTTPRoute](../../deploy/route.yaml) | [манифесты YAML проверены; принятие маршрута не подтверждено](../evidence/stage1-local-2026-09-30.md) |
 | GW-004 | Запрос через Gateway возвращает ожидаемый ответ | частично | [ограниченная проверка Gateway](../../scripts/verify.sh) | [скрипт проверен синтаксически; Gateway-запрос не выполнялся](../evidence/stage1-local-2026-09-30.md) |
-| MON-001 | Prometheus видит доступный target и свежие samples | не проверено | — | — |
-| MON-002 | PromQL возвращает фактические метрики | не проверено | — | — |
-| LOG-001 | Fluentd/Filebeat передаёт логи в точку назначения | не проверено | — | — |
-| LOG-002 | Запрос с маркером найден в собранных логах | не проверено | — | — |
+| MON-001 | Prometheus видит доступный target и свежие samples | частично | [scrape-конфигурация и ограниченная проверка](../../deploy/prometheus.yml), [verify](../../scripts/verify.sh) | [локальные проверки конфигурации и образов; targets не запускались](../evidence/stage2-local-2026-09-30.md) |
+| MON-002 | PromQL возвращает фактические метрики | частично | [метрики приложения и примеры PromQL](../../README.md), [verify](../../scripts/verify.sh) | [query-путь реализован, фактические samples на VM не получены](../evidence/stage2-local-2026-09-30.md) |
+| LOG-001 | Fluentd/Filebeat передаёт логи в точку назначения | частично | [Fluentd CRI-конфигурация](../../deploy/fluent.conf), [DaemonSet и local PV](../../deploy/observability.yaml) | [локальный parser-тест; CRI tail и запись на PV не выполнялись](../evidence/stage2-local-2026-09-30.md) |
+| LOG-002 | Запрос с маркером найден в собранных логах | частично | [bounded marker-поиск](../../scripts/find_log_marker.py), [verify](../../scripts/verify.sh) | [CRI parser helper покрыт unittest; live-маркер не проверен](../evidence/stage2-local-2026-09-30.md) |
 
 ## Среда и развёртывание
 
@@ -29,7 +29,7 @@
 | DEP-003 | Обязательная часть работает без специфических коммерческих сервисов | частично | [локальные Kubernetes и NodePort](../../README.md) | [только локальная конфигурация, runtime не проверен](../evidence/stage1-local-2026-09-30.md) |
 | DEP-004 | Развёртывание по инструкции проходит без ручного создания ресурсов | частично | [bootstrap](../../scripts/bootstrap.sh), [deploy](../../scripts/deploy.sh) | [скрипты проверены синтаксически; развёртывание не запускалось](../evidence/stage1-local-2026-09-30.md) |
 | DEP-005 | Второй запуск сохраняет работоспособность | частично | [повторный deploy и сохранение весов](../../scripts/deploy.sh) | [логика проверена чтением кода; два развёртывания не выполнялись](../evidence/stage1-local-2026-09-30.md) |
-| DEP-006 | Все зависимости и установка перечислены или автоматизированы | частично | [версии](../../deploy/versions.env), [bootstrap](../../scripts/bootstrap.sh), [lock](../../requirements.lock) | [версии и ARM64 манифесты проверены; установка не запускалась](../evidence/stage1-local-2026-09-30.md) |
+| DEP-006 | Все зависимости и установка перечислены или автоматизированы | частично | [версии](../../deploy/versions.env), [deploy](../../scripts/deploy.sh), [bootstrap](../../scripts/bootstrap.sh), [lock](../../requirements.lock) | [пакетные и image refs зафиксированы, ARM64 registry descriptors проверены; установка не запускалась](../evidence/stage2-local-2026-09-30.md) |
 
 ## Документация
 
@@ -38,7 +38,7 @@
 | DOC-001 | В клоне есть все исходные материалы для запуска | не проверено | — | — |
 | DOC-002 | README описывает архитектуру, технологии и версии | не проверено | — | — |
 | DOC-003 | README даёт среду, зависимости и шаги развёртывания | не проверено | — | — |
-| DOC-004 | Проверки Gateway, метрик и логов из README работают | не проверено | — | — |
+| DOC-004 | Проверки Gateway, метрик и логов из README работают | частично | [команды проверки и запросы](../../README.md), [verify](../../scripts/verify.sh) | [локальные проверки файлов прошли; Gateway/Prometheus/Fluentd flow в VM не запускался](../evidence/stage2-local-2026-09-30.md) |
 | DOC-005 | README описывает заявленные улучшения и ограничения | не проверено | — | — |
 | DOC-006 | В публикуемом репозитории и истории нет секретов | не проверено | — | — |
 | DOC-007 | Паспорт соответствует формату, страницам и размеру | не проверено | — | — |

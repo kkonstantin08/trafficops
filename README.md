@@ -1,8 +1,8 @@
 # TrafficOps
 
-TrafficOps — локальная лаборатория эксплуатации HTTP-сервиса. Этап 1 поднимает один Kubernetes-узел, две версии демонстрационного приложения и Envoy Gateway. Gateway отправляет `/demo` на `v1`; `v2` уже развёрнута и готова к следующим сценариям.
+TrafficOps — локальная лаборатория эксплуатации HTTP-сервиса. Этапы 1–2 поднимают один Kubernetes-узел, две версии демонстрационного приложения, Envoy Gateway, Prometheus и Fluentd. Gateway отправляет `/demo` на `v1`; `v2` уже развёрнута и готова к следующим сценариям.
 
-## Состав этапа 1
+## Компоненты
 
 | Компонент | Версия | Установка |
 | --- | --- | --- |
@@ -14,6 +14,12 @@ TrafficOps — локальная лаборатория эксплуатаци�
 | Helm | 3.22.0 | Официальный ARM64 архив с закреплённой SHA-256 |
 | Docker Engine / Buildx | 29.8.1 / 0.37.1 | Сборка локального образа; Kubernetes использует containerd |
 | Demo app | Python 3.12.12 | Образ из корневого `Dockerfile`; базовый multi-arch образ закреплён по digest |
+| Prometheus | 3.14.0 | ARM64 digest в `deploy/versions.env`; scrape каждые 10 секунд, TSDB 24 часа / 512 MB |
+| Fluentd | 1.19.3 Debian | ARM64 digest в `deploy/versions.env`; встроенный `regexp` parser для строк CRI |
+| node-exporter | 1.12.1 | ARM64 digest; host metrics с read-only mount `/proc`, `/sys` и `/` |
+| kube-state-metrics | 2.20.0 | ARM64 digest; ограничен ресурсами pods, deployments и nodes |
+
+Официальные release/tag сведения: [Prometheus](https://github.com/prometheus/prometheus/releases/tag/v3.14.0), [Fluentd image](https://github.com/fluent/fluentd-docker-image/releases/tag/v1.19.3-2.2), [node-exporter](https://github.com/prometheus/node_exporter/releases/tag/v1.12.1), [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/releases/tag/v2.20.0). Фактически проверенные ARM64 digests закреплены в [versions.env](deploy/versions.env). Используются штатные [Fluentd regexp parser](https://docs.fluentd.org/parser/regexp) и [JSON parser filter](https://docs.fluentd.org/filter/parser); список ресурсов kube-state-metrics ограничен поддерживаемым флагом `--resources`. Envoy proxy target использует owning-Gateway labels и порт `19001` согласно [руководству Envoy Gateway 1.9](https://gateway.envoyproxy.io/v1.9/tasks/observability/proxy-metric/).
 
 Kubernetes 1.36 и Envoy Gateway 1.9 совместимы по [официальной матрице Envoy Gateway](https://gateway.envoyproxy.io/news/releases/matrix/). Образы Envoy Gateway, Envoy proxy и Flannel проверены на наличие `linux/arm64` 30 сентября 2026. Требуемый lock-файл сообщает, что приложению нужны только стандартные библиотеки Python; точный образ Python закреплён в [Dockerfile](Dockerfile).
 
@@ -74,6 +80,39 @@ curl --fail-with-body -H 'Host: trafficops.local' \
 
 Метрики приложения: `trafficops_http_requests_total{version,status}` и `trafficops_http_request_duration_seconds{version}`. Уникальные request/run-маркеры не используются как labels.
 
+## Метрики и логи
+
+`make deploy` устанавливает Prometheus и Fluentd вместе с приложением. Prometheus доступен внутри кластера как `prometheus.observability.svc:9090`; рабочая конфигурация и все версии находятся в `deploy/`. Локальные тома располагаются в `/var/lib/trafficops/prometheus` и `/var/lib/trafficops/fluentd` на узле Kubernetes.
+
+Prometheus опрашивает `demo-v1`, `demo-v2`, Envoy proxy, node-exporter и kube-state-metrics каждые 10 секунд. Примеры запросов:
+
+```promql
+sum by (version, status) (rate(trafficops_http_requests_total[1m]))
+sum by (version) (rate(trafficops_http_requests_total{status=~"5.."}[1m]))
+node_memory_MemAvailable_bytes
+rate(node_cpu_seconds_total[1m])
+kube_deployment_status_replicas_available{namespace="trafficops"}
+```
+
+Откройте Prometheus внутри VM:
+
+```bash
+kubectl port-forward -n observability service/prometheus 9090:9090
+```
+
+В браузере VM откройте `http://127.0.0.1:9090`. `make verify` проверяет фактические значения `up` для всех пяти scrape jobs, свежесть их исходных samples через `timestamp(up)`, и свежий счётчик контрольного HTTP-запроса. Время выполнения PromQL-запроса само по себе свежестью sample не считается.
+
+Fluentd tail-читает только `/var/log/pods/trafficops_demo-v1-*` и `/var/log/pods/trafficops_demo-v2-*`; вход смонтирован read-only. Штатный regexp parser выделяет время CRI, поток, признак `F/P` и JSON приложения, который затем разбирается встроенным JSON parser. Неподходящие формату CRI строки сохраняются как unmatched records, а неполный/невалидный JSON отправляется в отдельный `trafficops-parse-errors` файл Fluentd. Файловый буфер ограничен 64 MB для обычных записей и 16 MB для ошибок разбора, интервал flush — 2 секунды, переполнение оставляет ошибку в журнале Fluentd.
+
+Чтобы `make verify` мог найти контрольный access-маркер максимум за 30 секунд, выходные файлы разбиты по 10-секундным окнам; это отклонение от почасовой ротации из плана. Fluentd держит незаписанные chunks в отдельном файловом буфере, а ограниченный CronJob каждый час удаляет закрытые файлы старше 24 часов только из `/logs`, не затрагивая текущие chunks. Размер `capacity: 2Gi` у local PV задаёт Kubernetes для привязки, но сам по себе не является дисковой квотой для host path; расход диска в VM надо измерить при live-приёмке.
+
+`make verify` отправляет запрос через Gateway, немедленно начинает bounded-поиск JSON access-записи в Fluentd PV и затем проверяет Prometheus. Для ручного просмотра логов используйте:
+
+```bash
+kubectl exec -n observability daemonset/fluentd -- \
+  /bin/sh -c 'grep -hF "verify-" /logs/trafficops.*.log | tail -n 5'
+```
+
 ## Границы проверки
 
-Компоненты и скрипты записаны. Unit-тесты приложения можно выполнить локально; сборка контейнерного образа и запуск на Ubuntu VM требуют доступного Docker daemon и стенда, которых в текущей среде нет. Поэтому успешная сборка и требования `K8S-001`, `APP-001`, `GW-001–004`, `DEP-001–002` и работа сетевого пути остаются без фактического подтверждения. Метрики Prometheus, сборщик Fluentd, панель и операции релиза добавляются следующими этапами.
+Конфигурация этапов 1–2 записана и проходит локальные проверки, но полный запуск на Ubuntu VM здесь не выполнялся. Поэтому успешная сборка образов, Kubernetes targets/samples, сквозная Fluentd-доставка, ротация/retention, расход RAM/диска и требования `K8S-001`, `APP-001`, `GW-001–004`, `MON-001/002`, `LOG-001/002`, `DEP-001–002`, `DOC-004` остаются без live-подтверждения. Панель и операции релиза добавляются следующими этапами.
