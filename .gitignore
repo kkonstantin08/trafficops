@@ -1,0 +1,17 @@
+.worktrees/
+.superpowers/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite*
+*.log
+*.pem
+*.key
+secrets/
+artifacts/
+.DS_Store
