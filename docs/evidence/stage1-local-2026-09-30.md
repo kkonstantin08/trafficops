@@ -33,3 +33,18 @@ YAML OK: deploy/route.yaml
 Попытка `docker info --format '{{.ServerVersion}}' && docker build --tag trafficops-demo:0.1.0 --file Dockerfile .` остановилась до сборки: Docker daemon недоступен (`unix:///Users/kk0sta/.docker/run/docker.sock: no such file or directory`). Образ приложения локально не собран.
 
 Команды `make bootstrap`, `make deploy` и `make verify` не запускались. Нет фактических результатов Ubuntu 24.04, kubeadm, готовности Envoy Gateway, принятия маршрута и запроса через Gateway. Эти пункты остаются частичными или непроверенными в [таблице приёмки](../requirements/06-acceptance.md).
+
+## Дополнительная проверка конфигурации containerd
+
+30 сентября исправлен сценарий, когда пакет `containerd.io` создаёт конфигурацию уже во время установки. Bootstrap запоминает наличие `/etc/containerd/config.toml` до первого `apt-get`; существующий файл не переписывается и проходит проверку TOML, CRI, `SystemdCgroup` и sandbox image. Если файла не было, созданная пакетом конфигурация сохраняется как `/etc/containerd/config.toml.trafficops-package-default.bak`, затем устанавливается минимальная конфигурация v3 с `required_plugins`, `pinned_images.sandbox` и `SystemdCgroup=true`.
+
+Схема сверена с официальной [containerd 2.3.6 CRI configuration](https://github.com/containerd/containerd/blob/v2.3.6/docs/cri/config.md) и [Kubernetes container runtime instructions](https://kubernetes.io/docs/setup/production-environment/container-runtimes/): для containerd 2.x используется plugin `io.containerd.cri.v1.runtime`, а sandbox image задаётся в `io.containerd.cri.v1.images.pinned_images.sandbox`. Старое поле `sandbox_image` не применяется.
+
+`python3 -m unittest tests.test_bootstrap_containerd_config`:
+
+```text
+Ran 1 test
+OK
+```
+
+Тест разбирает именно встроенный TOML шаблон и выполняет встроенный валидатор: корректная v3 конфигурация проходит; конфигурация с `disabled_plugins=["cri"]` отклоняется, а файл остаётся неизменным. `bash -n scripts/bootstrap.sh`, `python3 -m unittest discover -s tests -p 'test_demo.py'` (6 tests) и `git diff --check` прошли. Проверка изменения файлов после установки пакета и запуск `containerd` доступны только на Ubuntu VM и здесь не выполнялись.

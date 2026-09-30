@@ -63,6 +63,12 @@ for package_spec in \
   assert_pkg_version "${package_spec%%:*}" "${package_spec#*:}"
 done
 
+containerd_config=/etc/containerd/config.toml
+containerd_config_preexisting=0
+if [[ -e $containerd_config || -L $containerd_config ]]; then
+  containerd_config_preexisting=1
+fi
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y ca-certificates curl gpg apt-transport-https
@@ -92,15 +98,68 @@ apt-mark hold containerd.io docker-ce docker-ce-cli docker-buildx-plugin kubelet
 pause_image=$(kubeadm config images list --kubernetes-version "v$KUBERNETES_VERSION" | awk '/\/pause:/ { print; exit }')
 [[ $pause_image =~ ^registry\.k8s\.io/pause:[0-9.]+$ ]] || fail 'could not resolve kubeadm pause image'
 install -m 0755 -d /etc/containerd
-if [[ -e /etc/containerd/config.toml ]]; then
-  grep -Eq '^[[:space:]]*SystemdCgroup[[:space:]]*=[[:space:]]*true([[:space:]]|$)' /etc/containerd/config.toml ||
-    fail 'existing /etc/containerd/config.toml does not enable SystemdCgroup; inspect it manually, bootstrap left it unchanged'
-  grep -Fq "sandbox_image = \"$pause_image\"" /etc/containerd/config.toml ||
-    fail 'existing /etc/containerd/config.toml uses a different sandbox image; inspect it manually, bootstrap left it unchanged'
+if (( containerd_config_preexisting )); then
+  python3 - "$containerd_config" "$pause_image" <<'PY'
+import sys
+import tomllib
+
+path, expected_pause = sys.argv[1:]
+try:
+    with open(path, "rb") as config_file:
+        config = tomllib.load(config_file)
+except (OSError, tomllib.TOMLDecodeError) as error:
+    raise SystemExit(f"cannot validate existing {path}: {error}")
+
+disabled = set(config.get("disabled_plugins", []))
+cri_plugins = {
+    "cri",
+    "io.containerd.grpc.v1.cri",
+    "io.containerd.cri.v1.runtime",
+    "io.containerd.cri.v1.images",
+}
+if disabled & cri_plugins:
+    raise SystemExit(f"existing {path} disables CRI: {sorted(disabled & cri_plugins)}")
+
+plugins = config.get("plugins", {})
+runtime = plugins.get("io.containerd.cri.v1.runtime", {})
+options = (
+    runtime.get("containerd", {})
+    .get("runtimes", {})
+    .get("runc", {})
+    .get("options", {})
+)
+pause = (
+    plugins.get("io.containerd.cri.v1.images", {})
+    .get("pinned_images", {})
+    .get("sandbox")
+)
+if config.get("version") != 3 or options.get("SystemdCgroup") is not True or pause != expected_pause:
+    raise SystemExit(
+        f"existing {path} must use containerd 2.x config v3, "
+        f"SystemdCgroup=true, and pinned_images.sandbox={expected_pause}; "
+        "bootstrap left it unchanged"
+    )
+PY
 else
-  containerd config default >/etc/containerd/config.toml
-  sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
-  sed -i -E "s|^([[:space:]]*sandbox_image = ).*$|\\1\"$pause_image\"|" /etc/containerd/config.toml
+  package_config_backup=/etc/containerd/config.toml.trafficops-package-default.bak
+  if [[ -e $containerd_config ]]; then
+    [[ -e $package_config_backup ]] || cp -a "$containerd_config" "$package_config_backup"
+  fi
+  config_tmp=$(mktemp /etc/containerd/config.toml.trafficops.XXXXXX)
+  cat >"$config_tmp" <<EOF
+# Managed by TrafficOps bootstrap; containerd 2.x config schema.
+version = 3
+required_plugins = ["io.containerd.cri.v1.runtime", "io.containerd.cri.v1.images"]
+
+[plugins."io.containerd.cri.v1.images".pinned_images]
+sandbox = "$pause_image"
+
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.runc.options]
+SystemdCgroup = true
+EOF
+  chmod 0644 "$config_tmp"
+  chown root:root "$config_tmp"
+  mv -f "$config_tmp" "$containerd_config"
 fi
 systemctl enable --now containerd
 systemctl restart containerd
