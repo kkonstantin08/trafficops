@@ -71,7 +71,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl gpg apt-transport-https
+apt-get install -y ca-certificates curl gpg apt-transport-https python3
 install -m 0755 -d /etc/apt/keyrings
 curl --fail --location --silent --show-error --max-time 30 https://pkgs.k8s.io/core:/stable:/v1.36/deb/Release.key |
   gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
