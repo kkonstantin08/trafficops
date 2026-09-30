@@ -184,3 +184,26 @@ PY
 done
 [[ $prom_verified == true ]] || fail 'Prometheus did not expose fresh, healthy samples for both apps, Envoy, node-exporter, kube-state-metrics, and the verified request within 60 seconds'
 printf 'Prometheus verified: fresh up samples for all five jobs and HTTP 200 counter for %s\n' "$response_version"
+
+kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'=True \
+  httproute/trafficops-panel -n trafficops --timeout=20s
+kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}'=True \
+  httproute/trafficops-panel -n trafficops --timeout=20s
+panel_root=$(mktemp)
+panel_status=$(curl --silent --show-error --max-time 5 -o "$panel_root" -w '%{http_code}' \
+  "http://${node_ip}:${node_port}/" 2>/dev/null || true)
+[[ $panel_status == 200 ]] || fail "TrafficOps panel through direct VM IP returned HTTP ${panel_status:-no response}"
+python3 - "$panel_root" <<'PY'
+import sys
+
+html = open(sys.argv[1], encoding="utf-8").read()
+assert '<html lang="ru">' in html and 'TrafficOps' in html
+for section in ("overview", "traffic", "releases", "incidents", "diagnostics"):
+    assert f'id="{section}"' in html, f"panel section is missing: {section}"
+PY
+rm -f "$panel_root"
+health_status=$(curl --silent --show-error --max-time 5 -o /dev/null -w '%{http_code}' \
+  "http://${node_ip}:${node_port}/healthz" 2>/dev/null || true)
+[[ $health_status == 200 ]] || fail "TrafficOps controller health endpoint returned HTTP ${health_status:-no response}"
+printf 'TrafficOps panel and controller health verified through direct VM IP: HTTP %s / HTTP %s\n' \
+  "$panel_status" "$health_status"

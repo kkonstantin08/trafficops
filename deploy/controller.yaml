@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: trafficops-controller-data
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  local:
+    path: /var/lib/trafficops/controller
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: trafficops.io/observability-node
+              operator: In
+              values: ["true"]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: trafficops-controller-data
+  namespace: trafficops
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  volumeName: trafficops-controller-data
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trafficops-controller
+  namespace: trafficops
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: trafficops-controller
+  namespace: trafficops
+rules:
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes]
+    resourceNames: [demo-route]
+    verbs: [get, patch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [demo-v1, demo-v2]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [demo-v2-config]
+    verbs: [get, patch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: trafficops-controller
+  namespace: trafficops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: trafficops-controller
+subjects:
+  - kind: ServiceAccount
+    name: trafficops-controller
+    namespace: trafficops
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trafficops-controller
+  namespace: trafficops
+  labels:
+    app.kubernetes.io/name: trafficops-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: trafficops-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: trafficops-controller
+      annotations:
+        trafficops.io/source-sha256: __CONTROLLER_SOURCE_SHA__
+    spec:
+      serviceAccountName: trafficops-controller
+      automountServiceAccountToken: true
+      nodeSelector:
+        trafficops.io/observability-node: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: __DEMO_IMAGE__
+          imagePullPolicy: Never
+          command: [python, -m, uvicorn]
+          args: ["controller.api:app", --host, 0.0.0.0, --port, "8081", --no-access-log]
+          env:
+            - name: TRAFFICOPS_ADMIN_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: trafficops-controller
+                  key: admin-password-hash
+            - name: TRAFFICOPS_PUBLIC_ORIGIN
+              value: __PUBLIC_ORIGIN__
+            - name: TRAFFICOPS_GATEWAY
+              value: http://__NODE_IP__:30080
+            - name: TRAFFICOPS_DB
+              value: /var/lib/trafficops/controller.sqlite3
+            - name: TRAFFICOPS_COOKIE_SECURE
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/session
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 400m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: controller-data
+              mountPath: /var/lib/trafficops
+            - name: fluentd-logs
+              mountPath: /var/lib/trafficops/fluentd/logs
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: controller-data
+          persistentVolumeClaim:
+            claimName: trafficops-controller-data
+        - name: fluentd-logs
+          hostPath:
+            path: /var/lib/trafficops/fluentd/logs
+            type: Directory
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trafficops-controller
+  namespace: trafficops
+spec:
+  selector:
+    app.kubernetes.io/name: trafficops-controller
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http

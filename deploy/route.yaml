@@ -6,8 +6,6 @@ metadata:
 spec:
   parentRefs:
     - name: trafficops
-  hostnames:
-    - trafficops.local
   rules:
     - matches:
         - path:

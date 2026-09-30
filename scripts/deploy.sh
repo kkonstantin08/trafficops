@@ -17,6 +17,10 @@ printf 'Building %s from the repository Dockerfile...\n' "$DEMO_IMAGE"
 "${SUDO[@]}" docker build --tag "$DEMO_IMAGE" --file "$ROOT_DIR/Dockerfile" "$ROOT_DIR"
 "${SUDO[@]}" docker save "$DEMO_IMAGE" | "${SUDO[@]}" ctr --namespace k8s.io images import -
 
+kctl create namespace trafficops --dry-run=client -o yaml | kctl apply -f -
+if ! kctl get configmap/demo-v2-config -n trafficops >/dev/null 2>&1; then
+  kctl create configmap demo-v2-config -n trafficops --from-literal=APP_FORCE_ERRORS=false
+fi
 kctl apply -f "$ROOT_DIR/deploy/base.yaml"
 source_sha=$(cat "$ROOT_DIR/Dockerfile" "$ROOT_DIR/demo/app.py" "$ROOT_DIR/requirements.lock" | sha256sum | awk '{print $1}')
 for deployment in demo-v1 demo-v2; do
@@ -58,6 +62,7 @@ SUDO=()
 [[ $EUID -eq 0 ]] || SUDO=(sudo)
 "${SUDO[@]}" install -d -o 65534 -g 65534 -m 0750 /var/lib/trafficops/prometheus
 "${SUDO[@]}" install -d -m 0755 /var/lib/trafficops/fluentd/logs /var/lib/trafficops/fluentd/buffer
+"${SUDO[@]}" install -d -o 65532 -g 65532 -m 0750 /var/lib/trafficops/controller
 
 observability_manifest=$(mktemp)
 trap 'rm -f "$observability_manifest"' EXIT
@@ -88,5 +93,54 @@ kubectl --request-timeout=180s rollout status deployment/prometheus -n observabi
 kubectl --request-timeout=180s rollout status deployment/kube-state-metrics -n observability --timeout=180s
 kubectl --request-timeout=180s rollout status daemonset/node-exporter -n observability --timeout=180s
 kubectl --request-timeout=180s rollout status daemonset/fluentd -n observability --timeout=180s
+
+trafficops_config_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/trafficops
+admin_password_file=$trafficops_config_dir/admin-password
+admin_hash_file=$trafficops_config_dir/admin-password-hash
+install -d -m 0700 "$trafficops_config_dir"
+secret_exists=false
+if kctl get secret/trafficops-controller -n trafficops >/dev/null 2>&1; then secret_exists=true; fi
+if [[ ! -s $admin_password_file || ! -s $admin_hash_file ]]; then
+  [[ $secret_exists == false ]] || fail "controller secret exists; retain the original password file at $admin_password_file"
+  umask 077
+  python3 - "$admin_password_file" "$admin_hash_file" <<'PY'
+import hashlib
+import secrets
+import sys
+
+password = secrets.token_urlsafe(32)
+salt = secrets.token_bytes(16)
+digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 310000).hex()
+open(sys.argv[1], "w", encoding="utf-8").write(password)
+open(sys.argv[2], "w", encoding="utf-8").write(f"pbkdf2_sha256$310000${salt.hex()}${digest}")
+PY
+  chmod 0600 "$admin_password_file" "$admin_hash_file"
+fi
+if [[ $secret_exists == false ]]; then
+  kctl create secret generic trafficops-controller -n trafficops \
+    --from-file=admin-password-hash="$admin_hash_file"
+  printf 'Controller password saved outside the repository: %s\n' "$admin_password_file"
+fi
+
+node_ip=$(kctl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+[[ -n $node_ip ]] || fail 'Kubernetes node InternalIP is unavailable for controller routing'
+controller_source_sha=$(cat "$ROOT_DIR/Dockerfile" "$ROOT_DIR/controller/"*.py "$ROOT_DIR/web/"* \
+  "$ROOT_DIR/deploy/controller.yaml" "$ROOT_DIR/deploy/controller-route.yaml" \
+  "$ROOT_DIR/requirements.lock" | sha256sum | awk '{print $1}')
+controller_manifest=$(mktemp)
+sed \
+  -e "s|__DEMO_IMAGE__|$DEMO_IMAGE|g" \
+  -e "s|__NODE_IP__|$node_ip|g" \
+  -e "s|__PUBLIC_ORIGIN__|http://$node_ip:30080|g" \
+  -e "s|__CONTROLLER_SOURCE_SHA__|$controller_source_sha|g" \
+  "$ROOT_DIR/deploy/controller.yaml" >"$controller_manifest"
+kctl apply -f "$controller_manifest"
+rm -f "$controller_manifest"
+kctl apply -f "$ROOT_DIR/deploy/controller-route.yaml"
+kubectl --request-timeout=180s rollout status deployment/trafficops-controller -n trafficops --timeout=180s
+kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'=True \
+  httproute/trafficops-panel -n trafficops --timeout=60s
+kubectl wait --for=jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}'=True \
+  httproute/trafficops-panel -n trafficops --timeout=60s
 
 "$ROOT_DIR/scripts/verify.sh"

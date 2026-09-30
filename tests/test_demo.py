@@ -82,6 +82,18 @@ class DemoAppTest(unittest.TestCase):
         self.assertEqual(entries[-1]["request_id"], "req-123")
         self.assertEqual(entries[-1]["run_id"], "run-456")
 
+    def test_error_switch_can_change_without_restarting_handler(self):
+        enabled = [False]
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
+        self.start_server("v2", force_errors=lambda: enabled[0])
+        self.get("/demo")
+        enabled[0] = True
+        with self.assertRaises(HTTPError) as raised:
+            self.get("/demo")
+        raised.exception.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,22 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: trafficops-panel
+  namespace: trafficops
+spec:
+  parentRefs:
+    - name: trafficops
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+        - path:
+            type: PathPrefix
+            value: /web
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: trafficops-controller
+          port: 8081

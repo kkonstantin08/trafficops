@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>TrafficOps — эксплуатация</title>
+  <link rel="stylesheet" href="/web/styles.css">
+  <script src="/web/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#overview" aria-label="TrafficOps, обзор"><span class="brand-mark" aria-hidden="true">T</span>TrafficOps</a>
+    <nav aria-label="Разделы панели" class="nav">
+      <a href="#overview">Обзор</a><a href="#traffic">Трафик</a><a href="#releases">Релизы</a>
+      <a href="#incidents">Инциденты</a><a href="#diagnostics">Диагностика</a>
+    </nav>
+    <div class="session"><span id="session-label">Сессия не начата</span><button id="login-open" class="button quiet">Войти</button><button id="logout" class="button quiet hidden">Выйти</button></div>
+  </header>
+  <main>
+    <section class="intro" id="overview">
+      <div><p class="eyebrow">Лаборатория эксплуатации · Kubernetes</p><h1>Состояние сервиса</h1><p class="lede">Маршрут, метрики и действия стенда из работающих компонентов.</p></div>
+      <div class="updated"><span class="status-dot" id="health-dot"></span><span id="updated-at">Ожидание данных</span></div>
+    </section>
+    <section class="summary-grid" aria-label="Текущая сводка">
+      <article class="summary"><p>Релиз</p><strong id="release-state">Загрузка</strong><small id="release-reason">—</small></article>
+      <article class="summary"><p>Маршрут Gateway</p><strong id="weights">—</strong><small id="route-state">Проверка HTTPRoute</small></article>
+      <article class="summary"><p>Демонстрационные pods</p><strong id="pods">—</strong><small id="pods-updated">Состояние Kubernetes</small></article>
+      <article class="summary"><p>Prometheus</p><strong id="metrics-state">—</strong><small id="metrics-time">Время source sample</small></article>
+      <article class="summary"><p>Доля HTTP 5xx · v2</p><strong id="error-rate">—</strong><small id="error-rate-time">Окно 5 минут</small></article>
+      <article class="summary"><p>Задержка p95 · v2</p><strong id="latency-p95">—</strong><small id="latency-time">Окно 5 минут</small></article>
+    </section>
+    <section class="section" id="traffic">
+      <div class="section-heading"><div><p class="eyebrow">Запросы через Gateway</p><h2>Трафик</h2></div><span class="data-time" id="traffic-time">—</span></div>
+      <div class="columns">
+        <form id="traffic-form" class="panel form-grid">
+          <label>Запросов в секунду<input name="rate" type="number" min="1" max="20" value="10" required></label>
+          <label>Длительность, секунд<input name="duration" type="number" min="1" max="180" value="30" required></label>
+          <label class="wide">Путь<select name="path"><option>/demo</option><option>/demo/region/east</option><option>/demo/region/west</option></select></label>
+          <div class="actions wide"><button class="button primary control" type="submit">Отправить серию</button><button class="button control" id="traffic-stop" type="button">Остановить</button></div>
+          <p class="feedback wide" id="traffic-feedback" role="status">Частота до 20 запросов/с, не более 3600 запросов за серию.</p>
+        </form>
+        <article class="panel"><div class="panel-title"><h3>Фактические запросы</h3><span class="data-time" id="chart-time">—</span></div><div id="request-chart" class="chart" role="img" aria-label="Количество запросов по версии и статусу"><p class="muted">Ожидание метрик Prometheus</p></div></article>
+      </div>
+    </section>
+    <section class="section" id="releases">
+      <div class="section-heading"><div><p class="eyebrow">Взвешенное переключение</p><h2>Релизы</h2></div><span class="status-text" id="canary-status">Контроль не активен</span></div>
+      <div class="columns">
+        <article class="panel release-panel"><div><h3>Пробный релиз v2</h3><p class="muted">Старт с 10%. Автооткат проверяет только свежие метрики v2.</p></div>
+          <label class="weight-control">Доля v2 <output id="weight-value">10%</output><input id="weight" type="range" min="0" max="100" value="10" aria-label="Доля трафика новой версии"></label>
+          <div class="actions"><button class="button primary control" data-action="/api/release/start">Начать canary</button><button class="button control" id="apply-weight">Применить долю</button><button class="button control" data-action="/api/release/complete">Завершить</button><button class="button danger control" data-action="/api/release/rollback">Откатить вручную</button></div>
+          <div id="release-feedback" class="feedback" role="status">60 с окно · минимум 30 запросов v2 · порог 5% 5xx · 2 проверки с интервалом 10 с.</div>
+        </article>
+        <article class="panel"><h3>Решение контроллера</h3><dl class="facts"><div><dt>Состояние данных</dt><dd id="decision-state">Не проверено</dd></div><div><dt>Запросы v2</dt><dd id="decision-requests">—</dd></div><div><dt>Доля 5xx</dt><dd id="decision-errors">—</dd></div><div><dt>Sample time</dt><dd id="decision-time">—</dd></div><div><dt>Последовательные превышения</dt><dd id="decision-breaches">—</dd></div></dl></article>
+      </div>
+    </section>
+    <section class="section" id="incidents">
+      <div class="section-heading"><div><p class="eyebrow">Ограниченные демонстрационные действия</p><h2>Инциденты</h2></div></div>
+      <div class="columns">
+        <article class="panel"><h3>Ошибки новой версии</h3><p class="muted">Управляет только конфигурацией demo-v2. Изменение проявится после обновления проекции ConfigMap.</p><div class="actions"><button class="button danger control" data-action="/api/incident/errors" data-json='{"enabled":true}'>Включить HTTP 500 на v2</button><button class="button control" data-action="/api/incident/errors" data-json='{"enabled":false}'>Отключить HTTP 500</button></div></article>
+        <article class="panel"><h3>Перезапуск одного pod</h3><p class="muted">Контроллер выберет один работающий pod demo, дождётся replacement и проверит ответ через Gateway.</p><button class="button control" data-action="/api/incident/restart-pod">Перезапустить pod</button><p id="incident-feedback" class="feedback" role="status">Действия ограничены namespace trafficops.</p></article>
+      </div>
+    </section>
+    <section class="section" id="diagnostics">
+      <div class="section-heading"><div><p class="eyebrow">Фактическая точка назначения</p><h2>Диагностика</h2></div><span class="data-time" id="logs-time">—</span></div>
+      <div class="panel diagnostics"><form id="log-search" class="search"><label for="log-marker">Маркер запроса</label><input id="log-marker" name="marker" maxlength="64" pattern="[A-Za-z0-9._:-]{1,64}" placeholder="run-… или request_id"><button class="button" type="submit">Найти</button></form>
+        <div class="table-wrap"><table><thead><tr><th>Событие</th><th>Время записи</th><th>Версия</th><th>Статус</th><th>Request ID</th><th>Путь</th></tr></thead><tbody id="logs-body"><tr><td colspan="6" class="muted">Ожидание логов Fluentd</td></tr></tbody></table></div>
+      </div>
+      <div class="section-heading operations-heading"><div><p class="eyebrow">SQLite · последние операции</p><h2>Журнал</h2></div><span id="operations-time" class="data-time">—</span></div>
+      <div class="panel table-wrap"><table><thead><tr><th>Тип</th><th>Начало</th><th>Состояние</th><th>Причина</th><th>Детали</th></tr></thead><tbody id="operations-body"><tr><td colspan="5" class="muted">Журнал пока пуст</td></tr></tbody></table></div>
+    </section>
+  </main>
+  <dialog id="login-dialog"><form id="login-form" method="dialog"><div class="dialog-heading"><h2>Вход в TrafficOps</h2><button class="close" type="button" aria-label="Закрыть" id="login-close">×</button></div><label>Пароль стенда<input name="password" type="password" autocomplete="current-password" required></label><p id="login-error" class="error" role="alert"></p><button class="button primary" type="submit">Войти</button></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

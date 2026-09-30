@@ -125,9 +125,10 @@ def handler_for(version, log_stream=None, force_errors=False):
                             status = 404
                             self.respond(status, {"error": "unknown region"})
                             return
-                    if force_errors:
+                    active_errors = force_errors() if callable(force_errors) else force_errors
+                    if active_errors:
                         status = 500
-                        self.respond(status, {"error": "controlled demo failure", "version": version})
+                        self.respond(status, {"service": SERVICE, "error": "controlled demo failure", "version": version})
                     else:
                         status = 200
                         self.respond(
@@ -185,7 +186,11 @@ def handler_for(version, log_stream=None, force_errors=False):
 
 def main():
     version = os.environ.get("APP_VERSION", "v1")
-    force_errors = os.environ.get("APP_FORCE_ERRORS", "false").lower() == "true"
+    def force_errors():
+        try:
+            return open("/etc/trafficops/APP_FORCE_ERRORS", encoding="utf-8").read().strip().lower() == "true"
+        except OSError:
+            return os.environ.get("APP_FORCE_ERRORS", "false").lower() == "true"
     server = ThreadingHTTPServer(("0.0.0.0", int(os.environ.get("PORT", "8080"))), handler_for(version, force_errors=force_errors))
     try:
         server.serve_forever()
