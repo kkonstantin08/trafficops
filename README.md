@@ -69,7 +69,7 @@ curl --fail-with-body -H 'Host: trafficops.local' \
 - `GET /metrics` — Prometheus text format; `/healthz` и `/metrics` не входят в пользовательский счётчик.
 - `GET /demo` и `GET /demo/region/east|west` — JSON с версией, регионом и `request_id`/`run_id`.
 - Запросы передают маркеры заголовками `X-Request-ID`/`X-Run-ID` либо параметрами `request_id`/`run_id`. Маркер ограничен 64 символами `[A-Za-z0-9._:-]`; отсутствующий маркер генерируется автоматически.
-- `APP_FORCE_ERRORS=true` включает демонстрационный HTTP 500 на запросах `/demo`. В Kubernetes для этапа 1 это выключено.
+- `APP_FORCE_ERRORS=true` включает демонстрационный HTTP 500 на запросах `/demo`; по умолчанию значение `false`. Базовый манифест не задаёт эту переменную, поэтому повторный deploy сохраняет установленное позже состояние инцидента v2.
 - Приложение пишет одну компактную JSON access-запись на запрос в stdout и дополнительную JSON error-запись при HTTP 5xx. На этапе 2 Fluentd начнёт передавать эти записи в точку назначения.
 
 Метрики приложения: `trafficops_http_requests_total{version,status}` и `trafficops_http_request_duration_seconds{version}`. Уникальные request/run-маркеры не используются как labels.

@@ -9,6 +9,7 @@ trap '[[ -z ${flannel_manifest:-} ]] || rm -f "$flannel_manifest"' EXIT
 source "$ROOT_DIR/deploy/versions.env"
 
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+kctl() { kubectl --request-timeout=10s "$@"; }
 need_root() { [[ $EUID -eq 0 ]] || fail 'run with sudo: sudo make bootstrap'; }
 pkg_version() { dpkg-query -W -f='${Version}' "$1" 2>/dev/null || true; }
 assert_pkg_version() {
@@ -159,15 +160,15 @@ EOF
 fi
 
 if [[ $KUBERNETES_ALREADY_INITIALIZED == 1 ]]; then
-  kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes --no-headers | grep -q . || fail 'existing cluster API is unreachable; refusing to modify it'
+  kctl --kubeconfig=/etc/kubernetes/admin.conf get nodes --no-headers | grep -q . || fail 'existing cluster API is unreachable; refusing to modify it'
 fi
-node_count=$(kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes --no-headers | wc -l | tr -d ' ')
+node_count=$(kctl --kubeconfig=/etc/kubernetes/admin.conf get nodes --no-headers | wc -l | tr -d ' ')
 [[ $node_count == 1 ]] || fail "expected one managed node; found $node_count"
-kubectl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/control-plane- --ignore-not-found=true
-if kubectl --kubeconfig=/etc/kubernetes/admin.conf get ds kube-flannel-ds -n kube-flannel >/dev/null 2>&1; then
+kctl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/control-plane- --ignore-not-found=true
+if kctl --kubeconfig=/etc/kubernetes/admin.conf get ds kube-flannel-ds -n kube-flannel >/dev/null 2>&1; then
   echo 'Flannel already exists; leaving its current state unchanged.'
 else
-  kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f "$flannel_manifest"
+  kctl --kubeconfig=/etc/kubernetes/admin.conf apply -f "$flannel_manifest"
 fi
 kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready nodes --all --timeout=180s
 kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Available deployment/coredns -n kube-system --timeout=180s
