@@ -134,10 +134,10 @@ Controller работает только с фиксированными объ�
 
 ## Границы проверки
 
-Конфигурация этапов 1–3 проходит локальные unit/security проверки, но полноценный запуск на Ubuntu 24.04 VM не выполнялся. Поэтому сборка образа, Kubernetes RBAC/route behavior, фактические Prometheus samples, Fluentd доставка и поиск, действия панели, canary auto-rollback, восстановление pod и повторное развёртывание остаются без live-подтверждения. `make verify` проверяет базовые live-пути после установки; отдельный полный release/incident сценарий запланирован для этапа 4.
+Конфигурация этапов 1–3 проходит локальные unit/security проверки, но полноценный запуск на Ubuntu 24.04 VM не выполнялся. Сборка образа AMD64/ARM64 подтверждена GitHub Actions. Kubernetes RBAC/route behavior, фактические Prometheus samples, Fluentd доставка и поиск, действия панели, canary auto-rollback, восстановление pod и повторное развёртывание остаются без live-подтверждения. `make verify` проверяет базовые live-пути после установки; `make verify-scenario` автоматизирует полный release/incident сценарий, но его live-запуск ещё не выполнен.
 
 ## Инструкция и комплект сдачи
 
 Подробный порядок действий в локальной UTM VM: [docs/verification.md](docs/verification.md). [Источник черновика паспорта](docs/passport.md) и [PDF](output/pdf/TrafficOps-passport-draft.pdf) описывают текущую реализацию и открытые проверки. Черновик не является готовым комплектом сдачи: Ubuntu live-приёмка и сведения участника ещё не внесены. Публичный репозиторий: [https://github.com/kkonstantin08/trafficops](https://github.com/kkonstantin08/trafficops).
 
-CI запускает unit/syntax/schema checks и сборку приложения для AMD64/ARM64 без публикации: [.github/workflows/ci.yml](.github/workflows/ci.yml). Локально схемы всех 36 ресурсов проверены; workflow на GitHub и multiarch build пока не выполнялись. Итоговые независимые результаты: [evidence оркестратора](docs/evidence/orchestrator-local-2026-09-30.md).
+CI запускает unit/syntax/schema checks и сборку приложения для AMD64/ARM64 без публикации: [.github/workflows/ci.yml](.github/workflows/ci.yml). [Успешный запуск CI](https://github.com/kkonstantin08/trafficops/actions/runs/36775869932) подтвердил 31 тест, 36 схем и сборку AMD64/ARM64; [доказательство](docs/evidence/public-repository-2026-10-01.md). Итоговые независимые результаты: [evidence оркестратора](docs/evidence/orchestrator-local-2026-09-30.md).

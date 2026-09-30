@@ -10,7 +10,7 @@
 | APP-001 | HTTP-приложение запущено в кластере | частично | [Deployment и Service](../../deploy/base.yaml) | [локальная проверка, VM не запускалась](../evidence/stage1-local-2026-09-30.md) |
 | APP-002 | Статус и ответ совпадают с ожидаемыми | частично | [приложение](../../demo/app.py), [тесты](../../tests/test_demo.py) | [5 локальных unittest прошли](../evidence/stage1-local-2026-09-30.md) |
 | APP-003 | Контрольный запрос есть в access-логе приложения | частично | [JSON stdout-логи](../../demo/app.py), [проверка маркера](../../scripts/verify.sh) | [локальные тесты; сквозная проверка Fluentd на VM не выполнена](../evidence/stage2-local-2026-09-30.md) |
-| APP-004 | Образ доступен публично либо собирается из репозитория | частично | [Dockerfile](../../Dockerfile) | [ARM64 base image подтверждён; сборка приложения заблокирована недоступным Docker daemon](../evidence/stage1-local-2026-09-30.md) |
+| APP-004 | Образ доступен публично либо собирается из репозитория | выполнено | [Dockerfile](../../Dockerfile), [публичный source](https://github.com/kkonstantin08/trafficops) | [публичный clone и CI build AMD64/ARM64 подтверждены](../evidence/public-repository-2026-10-01.md) |
 | GW-001 | Open-source контроллер установлен и готов | частично | [установка Envoy Gateway](../../scripts/deploy.sh) | [версия и ARM64 образы проверены; контроллер не запускался](../evidence/stage1-local-2026-09-30.md) |
 | GW-002 | GatewayClass работает либо обоснованно не нужен | частично | [GatewayClass и параметры EnvoyProxy](../../deploy/envoy-proxy.yaml) | [манифест YAML проверен; статус кластера не получен](../evidence/stage1-local-2026-09-30.md) |
 | GW-003 | Gateway и HTTPRoute приняты и ведут к Service | частично | [Gateway](../../deploy/gateway.yaml), [HTTPRoute](../../deploy/route.yaml) | [манифесты YAML проверены; принятие маршрута не подтверждено](../evidence/stage1-local-2026-09-30.md) |
@@ -53,7 +53,7 @@
 | ID | Контрольная проверка | Статус | Реализация | Доказательство |
 | --- | --- | --- | --- | --- |
 | OPT-001 | Traffic split и panel route доступны по IP; веса v1/v2 меняются только фиксированным HTTPRoute | частично | [Gateway и routes](../../deploy/gateway.yaml), [контроллер](../../controller/clients.py) | [unit проверка сохранения matches и поколения маршрута; live маршрут не проверен](../evidence/stage3-local-2026-09-30.md) |
-| OPT-002 | CI проверяет код, конфигурации и сборку AMD64/ARM64 | частично | [GitHub Actions](../../.github/workflows/ci.yml), [schema validator](../../scripts/validate_manifests.sh) | [локально 36/36 схем valid; workflow и multiarch build не запускались](../evidence/orchestrator-local-2026-09-30.md) |
+| OPT-002 | CI проверяет код, конфигурации и сборку AMD64/ARM64 | выполнено | [GitHub Actions](../../.github/workflows/ci.yml), [успешный запуск](https://github.com/kkonstantin08/trafficops/actions/runs/36775869932) | [31 тест, 36 схем и multiarch build прошли в CI](../evidence/public-repository-2026-10-01.md) |
 | OPT-003 | Дополнительные Prometheus метрики и панель показывают фактические samples | частично | [PromQL и проверка исходных timestamp](../../controller/clients.py), [панель](../../web/index.html) | [unit проверка source timestamps; доступность Prometheus на VM не подтверждена](../evidence/stage3-local-2026-09-30.md) |
 | OPT-004 | Fluentd логи доступны из панели с CRI временем и поиском маркера | частично | [bounded чтение логов](../../controller/runtime.py), [Fluentd](../../deploy/fluent.conf) | [локальный helper test; чтение собранных Fluentd файлов в кластере не подтверждено](../evidence/stage3-local-2026-09-30.md) |
 | OPT-005 | Ограниченный API, Origin/CSRF, canary rollback и pod recovery | частично | [API](../../controller/api.py), [runtime](../../controller/runtime.py), [namespace RBAC](../../deploy/controller.yaml), [bounded live scenario](../../scripts/verify-scenario.py) | [unit/security tests и CLI cleanup проверены локально; live сценарий в VM не запускался](../evidence/stage4-scenario-local-2026-09-30.md) |
@@ -65,8 +65,8 @@
 | SUB-001 | Архив ZIP/RAR назван фамилией и не превышает 18 МБ | не проверено | — | — |
 | SUB-002 | В архиве есть `Ссылка.txt` и `Паспорт.pdf` | не проверено | — | — |
 | SUB-003 | TXT содержит только ссылку на актуальную ветку | не проверено | — | — |
-| SUB-004 | Публичный `git clone` проходит без авторизации | не проверено | — | — |
-| SUB-005 | Полное решение находится в основной ветке `main` | не проверено | — | — |
+| SUB-004 | Публичный `git clone` проходит без авторизации | выполнено | [публичный репозиторий](https://github.com/kkonstantin08/trafficops) | [чистый HTTPS clone без credentials: main, c450e1e](../evidence/public-repository-2026-10-01.md) |
+| SUB-005 | Полное решение находится в основной ветке `main` | выполнено | [исходники в основной main](https://github.com/kkonstantin08/trafficops/tree/main) | [вся текущая реализация опубликована в main; live-статусы компонентов остаются отдельными](../evidence/public-repository-2026-10-01.md) |
 | SUB-006 | Срок уточнён, загрузка своевременна, ревизия после срока неизменна | не проверено | — | — |
 | SUB-007 | Загрузка архива подтверждена страницей задания | не проверено | — | — |
 
