@@ -35,3 +35,9 @@ Ruby YAML parser успешно разобрал `base.yaml`, `envoy-proxy.yaml`
 В локальной панели через встроенный браузер Codex проверены пять разделов, отображение unavailable/unknown при отсутствии настоящих компонентов, вход и выход с одноразовыми тестовыми credentials, disabled управляющие кнопки в режиме просмотра. При ширине окна около 630 px исправлен перенос навигации; проверены screenshot и accessibility tree. Управляющие операции над настоящим кластером не запускались. Временный preview server остановлен, вкладка закрыта.
 
 `docs/verification.md` содержит порядок действий в локальной VM, HTTP-маркер, query исходных timestamps, canary, восстановление и повторное развёртывание. Черновик паспорта `output/pdf/TrafficOps-passport-draft.pdf` создан reportlab в bundled runtime, отрендерен Poppler; обе страницы просмотрены визуально. Размер 31 КБ, две страницы. Это не финальный комплект сдачи: live-приёмка и публичный адрес отсутствуют.
+
+### Финальная проверка этапа 3
+
+После `12dc12c` оркестратор повторно выполнил весь набор: `Ran 28 tests in 8.038s`, `OK`. `bash -n` для bootstrap/deploy/verify/validate_manifests, `node --check web/app.js`, Ruby YAML parse всех восьми YAML/YML файлов и `git diff --check` завершились exit 0. Это достаточная локальная проверка этапа; runtime на Ubuntu остаётся открытым.
+
+Независимый запуск `scripts/validate_manifests.sh` сначала обнаружил несовместимые флаги местного sha256sum; исполнитель заменил сравнение на stdlib hashlib. Повторный запуск загрузил инструменты/CRD, но kubeconform не смог разрешить raw.githubusercontent.com через DNS `[::1]:53`: `Summary: 36 resources ... Valid: 0, Invalid: 0, Errors: 36, Skipped: 0`. Это ошибка получения схем, не успешная schema validation и не доказательство невалидности ресурсов. Дальнейшая проверка CI будет зафиксирована отдельно.
