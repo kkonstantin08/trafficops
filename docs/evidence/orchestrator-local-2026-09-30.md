@@ -41,3 +41,13 @@ Ruby YAML parser успешно разобрал `base.yaml`, `envoy-proxy.yaml`
 После `12dc12c` оркестратор повторно выполнил весь набор: `Ran 28 tests in 8.038s`, `OK`. `bash -n` для bootstrap/deploy/verify/validate_manifests, `node --check web/app.js`, Ruby YAML parse всех восьми YAML/YML файлов и `git diff --check` завершились exit 0. Это достаточная локальная проверка этапа; runtime на Ubuntu остаётся открытым.
 
 Независимый запуск `scripts/validate_manifests.sh` сначала обнаружил несовместимые флаги местного sha256sum; исполнитель заменил сравнение на stdlib hashlib. Повторный запуск загрузил инструменты/CRD, но kubeconform не смог разрешить raw.githubusercontent.com через DNS `[::1]:53`: `Summary: 36 resources ... Valid: 0, Invalid: 0, Errors: 36, Skipped: 0`. Это ошибка получения схем, не успешная schema validation и не доказательство невалидности ресурсов. Дальнейшая проверка CI будет зафиксирована отдельно.
+
+### CI validation после исправления
+
+После `6cf40d1` оркестратор просмотрел workflow и validator и самостоятельно выполнил `./scripts/validate_manifests.sh`: `Summary: 36 resources found in 7 files - Valid: 36, Invalid: 0, Errors: 0, Skipped: 0`, exit 0. Скрипт получает core-схемы curl по закреплённому Git commit и валидирует локально; Gateway/Envoy схемы извлечены из закреплённых CRD. Предыдущая DNS-блокировка устранена. Проверка схем не подтверждает admission/runtime кластера. GitHub Actions и multiarch build не запускались; Docker daemon на Mac отсутствует.
+
+### Итоговая локальная проверка сценария
+
+После `cdd3324` оркестратор прочитал CLI и README, самостоятельно выполнил `python3 scripts/verify-scenario.py --help`, `python3 -m py_compile scripts/verify-scenario.py`, `python3 -m unittest tests.test_verify_scenario -v` (1/1), `make -n verify-scenario` и `git diff --check`: exit 0. Скрипт хранится как executable (Git mode 100755). Итоговый полный набор: `Ran 29 tests in 8.010s`, `OK`.
+
+Проверка cleanup доказывает попытку всех действий восстановления после первого отказа, но не фактическое восстановление кластера. Live-сценарий не выполнялся. Исходники сохраняются локально в ветке trafficops-implementation; main и внешняя публикация пока не обновлены. Перед приёмкой нужен вывод ОС/архитектуры/vCPU/RAM из VM пользователя.

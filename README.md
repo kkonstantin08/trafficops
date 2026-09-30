@@ -131,3 +131,9 @@ Controller работает только с фиксированными объ�
 ## Границы проверки
 
 Конфигурация этапов 1–3 проходит локальные unit/security проверки, но полноценный запуск на Ubuntu 24.04 VM не выполнялся. Поэтому сборка образа, Kubernetes RBAC/route behavior, фактические Prometheus samples, Fluentd доставка и поиск, действия панели, canary auto-rollback, восстановление pod и повторное развёртывание остаются без live-подтверждения. `make verify` проверяет базовые live-пути после установки; отдельный полный release/incident сценарий запланирован для этапа 4.
+
+## Инструкция и комплект сдачи
+
+Подробный порядок действий в локальной UTM VM: [docs/verification.md](docs/verification.md). [Источник черновика паспорта](docs/passport.md) и [PDF](output/pdf/TrafficOps-passport-draft.pdf) описывают текущую реализацию и открытые проверки. Черновик не является готовым комплектом сдачи: публичная ссылка, Ubuntu live-приёмка и сведения участника ещё не внесены.
+
+CI запускает unit/syntax/schema checks и сборку приложения для AMD64/ARM64 без публикации: [.github/workflows/ci.yml](.github/workflows/ci.yml). Локально схемы всех 36 ресурсов проверены; workflow на GitHub и multiarch build пока не выполнялись. Итоговые независимые результаты: [evidence оркестратора](docs/evidence/orchestrator-local-2026-09-30.md).
