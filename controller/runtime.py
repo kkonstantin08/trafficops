@@ -295,7 +295,7 @@ class ControlPlane:
         def action():
             name = self.kube.restart_one_pod()
             self.kube.wait_pod_replacement(name)
-            return {"pod": name, "deleted": True, "replacement_running": True,
+            return {"pod": name, "deleted": True, "replacement_running": True, "replacement_ready": True,
                     "gateway_probe": self.probe_demo()}
         return self.release_change("incident-restart-pod", action)
 

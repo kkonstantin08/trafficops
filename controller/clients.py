@@ -128,13 +128,16 @@ class Kubernetes:
         while time.time() < deadline:
             pods = self.demo_pods().get("items", [])
             ready = [pod for pod in pods if pod.get("status", {}).get("phase") == "Running"
-                     and pod["metadata"]["name"] != deleted_name]
+                     and pod["metadata"]["name"] != deleted_name
+                     and not pod.get("metadata", {}).get("deletionTimestamp")
+                     and any(c.get("type") == "Ready" and c.get("status") == "True"
+                             for c in pod.get("status", {}).get("conditions", []))]
             deployments = self.deployments()
             required = sum(item["desired"] for item in deployments)
             if deleted_name not in {pod["metadata"]["name"] for pod in pods} and len(ready) >= required:
                 return True
             time.sleep(1)
-        raise ClusterError("replacement demo pod did not become Running")
+        raise ClusterError("replacement demo pod did not become Ready")
 
 
 class Prometheus:

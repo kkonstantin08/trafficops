@@ -17,6 +17,9 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      timeouts:
+        request: 100s
+        backendRequest: 100s
       backendRefs:
         - name: trafficops-controller
           port: 8081

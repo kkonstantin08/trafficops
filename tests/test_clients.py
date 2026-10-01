@@ -1,10 +1,29 @@
 import unittest
 import time
+from pathlib import Path
+from unittest.mock import patch
 
 from controller.clients import ClusterError, Kubernetes
 
 
 class RouteGenerationTests(unittest.TestCase):
+    def test_controller_route_allows_bounded_pod_recovery(self):
+        route = (Path(__file__).resolve().parents[1] / "deploy/controller-route.yaml").read_text()
+        self.assertIn("request: 100s", route)
+        self.assertIn("backendRequest: 100s", route)
+
+    def test_replacement_must_be_ready_not_just_running(self):
+        client = object.__new__(Kubernetes)
+        def pod(ready):
+            return {"metadata": {"name": "replacement"}, "status": {
+                "phase": "Running", "conditions": [{"type": "Ready", "status": ready}]}}
+        replies = iter([{"items": [pod("False")]}, {"items": [pod("True")]}])
+        client.demo_pods = lambda: next(replies)
+        client.deployments = lambda: [{"desired": 1, "ready": 1}]
+        with patch("controller.clients.time.sleep") as sleep:
+            self.assertTrue(client.wait_pod_replacement("deleted"))
+        sleep.assert_called_once_with(1)
+
     def test_old_accepted_condition_does_not_confirm_current_route(self):
         client = object.__new__(Kubernetes)
         client.route = lambda: {
