@@ -52,11 +52,11 @@
 
 | ID | Контрольная проверка | Статус | Реализация | Доказательство |
 | --- | --- | --- | --- | --- |
-| OPT-001 | Traffic split и panel route доступны по IP; веса v1/v2 меняются только фиксированным HTTPRoute | частично | [Gateway и routes](../../deploy/gateway.yaml), [контроллер](../../controller/clients.py) | [unit проверка сохранения matches и поколения маршрута; live маршрут не проверен](../evidence/stage3-local-2026-09-30.md) |
+| OPT-001 | Traffic split и panel route доступны по IP; веса v1/v2 меняются только фиксированным HTTPRoute | выполнено | [Gateway и routes](../../deploy/gateway.yaml), [контроллер](../../controller/clients.py) | [canary, HTTP v2 и rollback до HTTP v1 в Ubuntu 22.04](../evidence/vm-scenario-2026-10-01.md), [panel route по IP](../evidence/vm-verify-2026-10-01.md) |
 | OPT-002 | CI проверяет код, конфигурации и сборку AMD64/ARM64 | выполнено | [GitHub Actions](../../.github/workflows/ci.yml), [успешный запуск](https://github.com/kkonstantin08/trafficops/actions/runs/36775869932) | [31 тест, 36 схем и multiarch build прошли в CI](../evidence/public-repository-2026-10-01.md) |
 | OPT-003 | Дополнительные Prometheus метрики и панель показывают фактические samples | частично | [PromQL и проверка исходных timestamp](../../controller/clients.py), [панель](../../web/index.html) | [unit проверка source timestamps; доступность Prometheus на VM не подтверждена](../evidence/stage3-local-2026-09-30.md) |
 | OPT-004 | Fluentd логи доступны из панели с CRI временем и поиском маркера | частично | [bounded чтение логов](../../controller/runtime.py), [Fluentd](../../deploy/fluent.conf) | [локальный helper test; чтение собранных Fluentd файлов в кластере не подтверждено](../evidence/stage3-local-2026-09-30.md) |
-| OPT-005 | Ограниченный API, Origin/CSRF, canary rollback и pod recovery | частично | [API](../../controller/api.py), [runtime](../../controller/runtime.py), [namespace RBAC](../../deploy/controller.yaml), [bounded live scenario](../../scripts/verify-scenario.py) | [unit/security tests и CLI cleanup проверены локально; live сценарий в VM не запускался](../evidence/stage4-scenario-local-2026-09-30.md) |
+| OPT-005 | Ограниченный API, Origin/CSRF, canary rollback и pod recovery | частично | [API](../../controller/api.py), [runtime](../../controller/runtime.py), [namespace RBAC](../../deploy/controller.yaml), [bounded live scenario](../../scripts/verify-scenario.py) | [canary и автоматический rollback прошли в Ubuntu 22.04; pod recovery и негативные Origin/CSRF проверки в VM открыты](../evidence/vm-scenario-2026-10-01.md), [локальные security tests](../evidence/stage4-scenario-local-2026-09-30.md) |
 
 ## Сдача
 
