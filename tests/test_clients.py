@@ -115,6 +115,20 @@ class PrometheusFreshnessTests(unittest.TestCase):
         client.query = lambda expression: ([{"metric": {"version": version}, "value": [now, "NaN"]}
                                              for version in ("v1", "v2")] if expression.startswith("histogram_quantile")
                                             else original_query(expression))
+        unknown_latency = client.metrics()
+        self.assertEqual(unknown_latency["status"], "available")
+        self.assertEqual(unknown_latency["series"]["latency_p95"], [])
+        self.assertTrue(unknown_latency["series"]["requests"])
+        client.query = lambda expression: ([{"metric": {"version": "v2"}, "value": [now, "NaN"]},
+                                            {"metric": {"version": "v1"}, "value": [now, "0.01"]}]
+                                           if expression.startswith("histogram_quantile")
+                                           else original_query(expression))
+        mixed = client.metrics()
+        self.assertEqual(mixed["status"], "available")
+        self.assertEqual([row["metric"]["version"] for row in mixed["series"]["latency_p95"]], ["v1"])
+        client.query = lambda expression: ([{"metric": {}, "value": [now, "NaN"]}]
+                                           if expression == "node_memory_MemAvailable_bytes"
+                                           else original_query(expression))
         self.assertEqual(client.metrics()["status"], "unavailable")
 
 

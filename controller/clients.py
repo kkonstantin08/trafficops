@@ -220,11 +220,15 @@ class Prometheus:
                             value = float(row["value"][1])
                         except (KeyError, IndexError, TypeError, ValueError, OverflowError) as exc:
                             raise ClusterError(f"Prometheus series is malformed for {key}") from exc
+                        # A histogram with no observations has an undefined quantile.
+                        # Keep its latency unknown without hiding valid request/host metrics.
+                        if key == "latency_p95" and math.isnan(value):
+                            continue
                         if not math.isfinite(value):
                             raise ClusterError(f"Prometheus series is non-finite for {key}")
                         rows.append({"metric": row.get("metric", {}), "value": row["value"],
                                      "sample_time": source_time})
-                    if not rows:
+                    if not rows and key != "latency_p95":
                         raise ClusterError(f"Prometheus series is empty for {key}")
                     out["series"][key] = rows
             samples = [row["sample_time"] for rows in out["series"].values() for row in rows]
