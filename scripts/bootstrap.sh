@@ -243,7 +243,10 @@ if [[ $KUBERNETES_ALREADY_INITIALIZED == 1 ]]; then
 fi
 node_count=$(kctl --kubeconfig=/etc/kubernetes/admin.conf get nodes --no-headers | wc -l | tr -d ' ')
 [[ $node_count == 1 ]] || fail "expected one managed node; found $node_count"
-kctl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/control-plane- --ignore-not-found=true
+node_taints=$(kctl --kubeconfig=/etc/kubernetes/admin.conf get nodes -o 'jsonpath={range .items[*].spec.taints[*]}{.key}{"\n"}{end}')
+if grep -Fxq 'node-role.kubernetes.io/control-plane' <<<"$node_taints"; then
+  kctl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/control-plane-
+fi
 if kctl --kubeconfig=/etc/kubernetes/admin.conf get ds kube-flannel-ds -n kube-flannel >/dev/null 2>&1; then
   echo 'Flannel already exists; leaving its current state unchanged.'
 else
