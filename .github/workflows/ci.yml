@@ -36,7 +36,9 @@ jobs:
         run: bash -n scripts/bootstrap.sh scripts/deploy.sh scripts/verify.sh scripts/validate_manifests.sh
 
       - name: Check browser JavaScript syntax
-        run: node --check web/app.js
+        run: |
+          node --check web/app.js
+          node tests/test_release_ui.js
 
       - name: Validate Kubernetes manifests
         run: scripts/validate_manifests.sh

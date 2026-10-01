@@ -2,6 +2,9 @@ const $ = (selector) => document.querySelector(selector);
 let csrf = null;
 let refreshTimer;
 let refreshing = false;
+let authenticated = false;
+let lastOverview = null;
+let controlBusy = false;
 
 function time(value) {
   if (!value) return "—";
@@ -35,10 +38,11 @@ async function api(path, options = {}) {
 }
 
 function sessionView(authed) {
+  authenticated = authed;
   $("#session-label").textContent = authed ? "Управление доступно" : "Только просмотр";
   $("#login-open").classList.toggle("hidden", authed);
   $("#logout").classList.toggle("hidden", !authed);
-  document.querySelectorAll(".control").forEach(button => button.disabled = !authed);
+  applyReleaseControls();
 }
 
 function statusClass(status) {
@@ -83,9 +87,54 @@ function fillTable(selector, rows, columns, emptyText) {
   }
 }
 
+function releaseAvailability(release, policy, authed, busy, now = Date.now()/1000) {
+  const enabled = authed && !busy;
+  const decision = release?.last_decision || {};
+  const fresh = Number.isFinite(decision.sample_time) && decision.sample_time <= now+5
+    && now-decision.sample_time <= (policy?.max_sample_age_seconds ?? 30);
+  return {
+    start: enabled && !!release && !release.reconcile_required
+      && !["canary", "completed", "reconcile-required"].includes(release.status),
+    advance: enabled && release?.status === "canary" && !release.reconcile_required
+      && fresh && decision.state === "observe" && Number.isFinite(decision.error_ratio)
+      && decision.error_ratio <= (policy?.error_threshold ?? 0.05),
+    rollback: enabled,
+  };
+}
+
+function applyReleaseControls() {
+  document.querySelectorAll(".control").forEach(button => button.disabled = !authenticated || controlBusy);
+  const allowed = releaseAvailability(lastOverview?.release, lastOverview?.policy, authenticated, controlBusy);
+  $('[data-action="/api/release/start"]').disabled = !allowed.start;
+  $("#apply-weight").disabled = !allowed.advance;
+  $('[data-action="/api/release/complete"]').disabled = !allowed.advance;
+  $('[data-action="/api/release/rollback"]').disabled = !allowed.rollback;
+  const active = lastOverview?.release?.status === "canary";
+  const policy = lastOverview?.policy || {};
+  $("#release-help").textContent = !authenticated ? "Войдите для управления релизами." : controlBusy
+    ? "Дождитесь завершения текущей операции."
+    : active && !allowed.advance
+      ? `Canary уже активен. Запустите трафик 10 запросов/с на 120 секунд. Для смены доли нужны полное окно ${policy.window_seconds ?? 60} с, минимум ${policy.min_requests ?? 30} запросов v2 и свежие безопасные метрики. Ручной откат доступен без метрик.`
+      : active ? "Метрики безопасны: можно применить долю или завершить релиз, пока трафик продолжается."
+      : lastOverview?.release?.status === "completed" ? "Релиз v2 завершён. Для нового canary сначала откатите на v1."
+      : "Запустите непрерывный трафик, затем начните canary. Ручной откат возвращает трафик на v1.";
+}
+
+function decisionText(reason) {
+  return ({
+    "insufficient or invalid v2 requests": "Недостаточно запросов v2 в текущем окне",
+    "canary window is not complete": "Ожидание полного окна canary",
+    "waiting for a complete fresh window": "Ожидание полного свежего окна",
+    "within error threshold": "Доля ошибок в пределах порога",
+    "5xx threshold exceeded": "Превышен порог ошибок 5xx",
+    "v2 target is down": "Prometheus не видит доступный target v2",
+    "source sample is stale or outside this canary": "Метрики устарели или получены до текущего canary",
+  })[reason] || reason;
+}
+
 function updateDecision(release) {
   const decision=release.last_decision || {};
-  $("#decision-state").textContent=decision.reason || decision.state || "Не проверено";
+  $("#decision-state").textContent=decisionText(decision.reason) || decision.state || "Не проверено";
   $("#decision-requests").textContent=decision.requests ?? "—";
   $("#decision-errors").textContent=Number.isFinite(decision.error_ratio) ? `${(decision.error_ratio*100).toFixed(2)}%` : "—";
   $("#decision-time").textContent=time(decision.sample_time);
@@ -101,6 +150,8 @@ async function refresh() {
       api("/api/overview"), api("/api/operations"), api(`/api/logs?limit=50${$("#log-marker").value ? `&marker=${encodeURIComponent($("#log-marker").value)}` : ""}`)
     ]);
     const services=overview.services || {}, release=overview.release || {}, metrics=overview.metrics || {};
+    lastOverview = overview;
+    applyReleaseControls();
     $("#updated-at").textContent=`Обновлено ${time(overview.updated_at)}`;
     $("#health-dot").className=`status-dot ${services.status === "available" && metrics.status === "available" ? "ok" : "bad"}`;
     $("#release-state").textContent=release.status || "—";
@@ -128,11 +179,14 @@ async function refresh() {
     const traffic=overview.traffic || {};
     $("#traffic-feedback").textContent=traffic.status === "running" ? `Идёт серия ${traffic.run_id}: ${traffic.sent}/${traffic.rate*traffic.duration}, ошибок ${traffic.failed}.` : `Последняя серия: ${traffic.status || "idle"}; отправлено ${traffic.sent || 0}, ошибок ${traffic.failed || 0}.`;
     $("#traffic-feedback").className=`feedback ${traffic.failed ? "error" : ""}`;
-  } catch (error) { $("#updated-at").textContent=`Панель недоступна: ${error.message}`; $("#health-dot").className="status-dot bad"; }
+  } catch (error) { lastOverview=null; applyReleaseControls(); $("#updated-at").textContent=`Панель недоступна: ${error.message}`; $("#health-dot").className="status-dot bad"; }
   finally { refreshing = false; }
 }
 
 async function control(path, data = {}) {
+  if (controlBusy) return;
+  controlBusy = true;
+  applyReleaseControls();
   const feedback = path.includes("incident") ? $("#incident-feedback") : $("#release-feedback");
   if (feedback) { feedback.textContent="Действие выполняется…"; feedback.className="feedback"; }
   try {
@@ -143,7 +197,7 @@ async function control(path, data = {}) {
     const message = error.name === "TimeoutError" ? "Ответ задерживается; проверьте результат в журнале операций." : error.message;
     if(feedback){feedback.textContent=message;feedback.className="feedback error";}
     toast(message,true); refresh(); throw error;
-  }
+  } finally { controlBusy = false; applyReleaseControls(); }
 }
 
 $("#login-open").addEventListener("click",()=>$("#login-dialog").showModal());

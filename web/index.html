@@ -48,7 +48,8 @@
       <div class="columns">
         <article class="panel release-panel"><div><h3>Пробный релиз v2</h3><p class="muted">Старт с 10%. Автооткат проверяет только свежие метрики v2.</p></div>
           <label class="weight-control">Доля v2 <output id="weight-value">10%</output><input id="weight" type="range" min="0" max="100" value="10" aria-label="Доля трафика новой версии"></label>
-          <div class="actions"><button class="button primary control" data-action="/api/release/start">Начать canary</button><button class="button control" id="apply-weight">Применить долю</button><button class="button control" data-action="/api/release/complete">Завершить</button><button class="button danger control" data-action="/api/release/rollback">Откатить вручную</button></div>
+          <p id="release-help" class="muted" role="status">Ожидание состояния релиза.</p>
+          <div class="actions" aria-describedby="release-help"><button class="button primary control" data-action="/api/release/start" disabled>Начать canary</button><button class="button control" id="apply-weight" disabled>Применить долю</button><button class="button control" data-action="/api/release/complete" disabled>Завершить</button><button class="button danger control" data-action="/api/release/rollback" disabled>Откатить вручную</button></div>
           <div id="release-feedback" class="feedback" role="status">60 с окно · минимум 30 запросов v2 · порог 5% 5xx · 2 проверки с интервалом 10 с.</div>
         </article>
         <article class="panel"><h3>Решение контроллера</h3><dl class="facts"><div><dt>Состояние данных</dt><dd id="decision-state">Не проверено</dd></div><div><dt>Запросы v2</dt><dd id="decision-requests">—</dd></div><div><dt>Доля 5xx</dt><dd id="decision-errors">—</dd></div><div><dt>Sample time</dt><dd id="decision-time">—</dd></div><div><dt>Последовательные превышения</dt><dd id="decision-breaches">—</dd></div></dl></article>
