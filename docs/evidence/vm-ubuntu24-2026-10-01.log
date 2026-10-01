@@ -1,0 +1,182 @@
+cat /etc/os-release
+make deploy && make verify && make verify-scenario
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.5 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+./scripts/deploy.sh
+Building trafficops-demo:0.1.0 from the repository Dockerfile...
+[+] Building 0.1s (12/12) FINISHED                                                                                        docker:default
+ => [internal] load build definition from Dockerfile                                                                                0.0s
+ => => transferring dockerfile: 485B                                                                                                0.0s
+ => [internal] load metadata for docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606d  0.0s
+ => [internal] load .dockerignore                                                                                                   0.0s
+ => => transferring context: 205B                                                                                                   0.0s
+ => [1/7] FROM docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e6  0.0s
+ => => resolve docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e6  0.0s
+ => [internal] load build context                                                                                                   0.0s
+ => => transferring context: 487B                                                                                                   0.0s
+ => CACHED [2/7] WORKDIR /app                                                                                                       0.0s
+ => CACHED [3/7] COPY requirements.lock /app/requirements.lock                                                                      0.0s
+ => CACHED [4/7] RUN pip install --no-cache-dir --requirement /app/requirements.lock                                                0.0s
+ => CACHED [5/7] COPY demo/app.py /app/demo/app.py                                                                                  0.0s
+ => CACHED [6/7] COPY controller /app/controller                                                                                    0.0s
+ => CACHED [7/7] COPY web /app/web                                                                                                  0.0s
+ => exporting to image                                                                                                              0.0s
+ => => exporting layers                                                                                                             0.0s
+ => => exporting manifest sha256:fff4c6be07c72dbeccfac8bba5d89d243a4927b6d3eecada7d7f125d7f9d56d8                                   0.0s
+ => => exporting config sha256:2b5cbdd30193193824421e0a61251b35b31d7a62de6577c94f308323397fbfca                                     0.0s
+ => => exporting attestation manifest sha256:c011df46e5b086e1b60f04c6d9421f5388ff6330fbd1f439f0f39441fe4c4531                       0.0s
+ => => exporting manifest list sha256:b63a689c00af9c974fcd84461d914bc06615cea241e010e4bb459ac34ad61ee3                              0.0s
+ => => naming to docker.io/library/trafficops-demo:0.1.0                                                                            0.0s
+ => => unpacking to docker.io/library/trafficops-demo:0.1.0                                                                         0.0s
+docker.io/library/trafficops demo:0.1.0 	saved	
+application/vnd.oci.image.index.v1+json sha256:b63a689c00af9c974fcd84461d914bc06615cea241e010e4bb459ac34ad61ee3
+Importing	elapsed: 0.5 s	total:   0.0 B	(0.0 B/s)	
+namespace/trafficops configured
+namespace/trafficops configured
+deployment.apps/demo-v1 unchanged
+service/demo-v1 unchanged
+deployment.apps/demo-v2 unchanged
+service/demo-v2 unchanged
+deployment.apps/demo-v1 annotated
+deployment "demo-v1" successfully rolled out
+deployment.apps/demo-v2 annotated
+deployment "demo-v2" successfully rolled out
+Pulled: docker.io/envoyproxy/gateway-helm:v1.9.1
+Digest: sha256:91bae9aedb91ab34731e987afe01a3ccf454393015abeca705eea8ee15553e86
+Release "eg" has been upgraded. Happy Helming!
+NAME: eg
+LAST DEPLOYED: Thu Oct  1 06:44:54 2026
+NAMESPACE: envoy-gateway-system
+STATUS: deployed
+REVISION: 3
+TEST SUITE: None
+NOTES:
+**************************************************************************
+*** PLEASE BE PATIENT: Envoy Gateway may take a few minutes to install ***
+**************************************************************************
+
+Envoy Gateway is an open source project for managing Envoy Proxy as a standalone or Kubernetes-based application gateway.
+
+Thank you for installing Envoy Gateway! \U0001f389
+
+Your release is named: eg. \U0001f389
+
+Your release is in namespace: envoy-gateway-system. \U0001f389
+
+To learn more about the release, try:
+
+  $ helm status eg -n envoy-gateway-system
+  $ helm get all eg -n envoy-gateway-system
+
+To have a quickstart of Envoy Gateway, please refer to https://gateway.envoyproxy.io/latest/tasks/quickstart.
+
+To get more details, please visit https://gateway.envoyproxy.io and https://github.com/envoyproxy/gateway.
+deployment.apps/envoy-gateway condition met
+envoyproxy.gateway.envoyproxy.io/trafficops-proxy unchanged
+gatewayclass.gateway.networking.k8s.io/trafficops unchanged
+gateway.gateway.networking.k8s.io/trafficops unchanged
+HTTPRoute demo-route already exists; preserving its current traffic weights.
+gatewayclass.gateway.networking.k8s.io/trafficops condition met
+gateway.gateway.networking.k8s.io/trafficops condition met
+gateway.gateway.networking.k8s.io/trafficops condition met
+httproute.gateway.networking.k8s.io/demo-route condition met
+httproute.gateway.networking.k8s.io/demo-route condition met
+node/ubuntu not labeled
+namespace/observability unchanged
+persistentvolume/trafficops-prometheus configured
+persistentvolumeclaim/prometheus-data unchanged
+persistentvolume/trafficops-fluentd-logs configured
+persistentvolumeclaim/fluentd-logs unchanged
+serviceaccount/prometheus unchanged
+role.rbac.authorization.k8s.io/trafficops-prometheus unchanged
+rolebinding.rbac.authorization.k8s.io/trafficops-prometheus unchanged
+deployment.apps/prometheus unchanged
+service/prometheus unchanged
+serviceaccount/kube-state-metrics unchanged
+clusterrole.rbac.authorization.k8s.io/trafficops-kube-state-metrics unchanged
+clusterrolebinding.rbac.authorization.k8s.io/trafficops-kube-state-metrics unchanged
+deployment.apps/kube-state-metrics unchanged
+service/kube-state-metrics unchanged
+daemonset.apps/node-exporter unchanged
+service/node-exporter unchanged
+daemonset.apps/fluentd unchanged
+cronjob.batch/fluentd-log-retention unchanged
+configmap/prometheus-config unchanged
+configmap/fluentd-config unchanged
+deployment "prometheus" successfully rolled out
+deployment "kube-state-metrics" successfully rolled out
+daemon set "node-exporter" successfully rolled out
+daemon set "fluentd" successfully rolled out
+persistentvolume/trafficops-controller-data configured
+persistentvolumeclaim/trafficops-controller-data unchanged
+serviceaccount/trafficops-controller unchanged
+role.rbac.authorization.k8s.io/trafficops-controller unchanged
+rolebinding.rbac.authorization.k8s.io/trafficops-controller unchanged
+deployment.apps/trafficops-controller unchanged
+service/trafficops-controller unchanged
+httproute.gateway.networking.k8s.io/trafficops-panel configured
+deployment "trafficops-controller" successfully rolled out
+httproute.gateway.networking.k8s.io/trafficops-panel condition met
+httproute.gateway.networking.k8s.io/trafficops-panel condition met
+NAME     STATUS   ROLES           AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION               CONTAINER-RUNTIME
+ubuntu   Ready    control-plane   40m   v1.36.5   192.168.64.5   <none>        Ubuntu 24.04.5 LTS   5.15.0-191-generic (arm64)   containerd://2.3.6
+NAME         CONTROLLER                                      ACCEPTED   AGE
+trafficops   gateway.envoyproxy.io/gatewayclass-controller   True       20m
+NAME                                           CLASS        ADDRESS        PROGRAMMED   AGE
+gateway.gateway.networking.k8s.io/trafficops   trafficops   192.168.64.5   True         20m
+
+NAME                                                   HOSTNAMES   AGE
+httproute.gateway.networking.k8s.io/demo-route                     20m
+httproute.gateway.networking.k8s.io/trafficops-panel               20m
+gatewayclass.gateway.networking.k8s.io/trafficops condition met
+gateway.gateway.networking.k8s.io/trafficops condition met
+gateway.gateway.networking.k8s.io/trafficops condition met
+httproute.gateway.networking.k8s.io/demo-route condition met
+httproute.gateway.networking.k8s.io/demo-route condition met
+Gateway response verified: HTTP 200, version v1, request_id verify-905c309c2f5748038f3e959d058d0d9a
+Fluentd log verified within 30 seconds: request_id verify-905c309c2f5748038f3e959d058d0d9a, version v1
+Prometheus verified: fresh up samples for all five jobs and HTTP 200 counter for v1
+httproute.gateway.networking.k8s.io/trafficops-panel condition met
+httproute.gateway.networking.k8s.io/trafficops-panel condition met
+TrafficOps panel and controller health verified through direct VM IP: HTTP 200 / HTTP 200
+./scripts/verify.sh
+NAME     STATUS   ROLES           AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION               CONTAINER-RUNTIME
+ubuntu   Ready    control-plane   40m   v1.36.5   192.168.64.5   <none>        Ubuntu 24.04.5 LTS   5.15.0-191-generic (arm64)   containerd://2.3.6
+NAME         CONTROLLER                                      ACCEPTED   AGE
+trafficops   gateway.envoyproxy.io/gatewayclass-controller   True       20m
+NAME                                           CLASS        ADDRESS        PROGRAMMED   AGE
+gateway.gateway.networking.k8s.io/trafficops   trafficops   192.168.64.5   True         20m
+
+NAME                                                   HOSTNAMES   AGE
+httproute.gateway.networking.k8s.io/demo-route                     20m
+httproute.gateway.networking.k8s.io/trafficops-panel               20m
+gatewayclass.gateway.networking.k8s.io/trafficops condition met
+gateway.gateway.networking.k8s.io/trafficops condition met
+gateway.gateway.networking.k8s.io/trafficops condition met
+httproute.gateway.networking.k8s.io/demo-route condition met
+httproute.gateway.networking.k8s.io/demo-route condition met
+Gateway response verified: HTTP 200, version v1, request_id verify-823ab77f59ed4fc1ae654f38af5781dd
+Fluentd log verified within 30 seconds: request_id verify-823ab77f59ed4fc1ae654f38af5781dd, version v1
+Prometheus verified: fresh up samples for all five jobs and HTTP 200 counter for v1
+httproute.gateway.networking.k8s.io/trafficops-panel condition met
+httproute.gateway.networking.k8s.io/trafficops-panel condition met
+TrafficOps panel and controller health verified through direct VM IP: HTTP 200 / HTTP 200
+./scripts/verify-scenario.py
+Resetting demo-v2 error switch; waiting 130 seconds for ConfigMap projection.
+Running healthy canary with 20 requests/s for at most 180 seconds.
+Healthy canary has a complete fresh window with at least 30 v2 requests.
+Healthy release completed and HTTP v2 was confirmed through Gateway.
+Manual rollback confirmed HTTP v1 through Gateway.
+Enabling controlled v2 errors and running a failed canary.
+Failed canary automatically rolled back; its fresh 5xx decision and HTTP v1 were confirmed.
+Scenario passed; finally stopped traffic, disabled v2 errors, manually rolled back, and logged out.
