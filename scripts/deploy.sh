@@ -4,12 +4,19 @@ set -Eeuo pipefail
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck disable=SC1091
 source "$ROOT_DIR/deploy/versions.env"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/platform.sh"
 export KUBECONFIG=${KUBECONFIG:-"$HOME/.kube/trafficops.conf"}
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 kctl() { kubectl --request-timeout=10s "$@"; }
 for cmd in kubectl helm docker ctr; do command -v "$cmd" >/dev/null || fail "$cmd is required; run make bootstrap first"; done
 [[ -r $KUBECONFIG ]] || fail "kubeconfig not found: $KUBECONFIG (run make bootstrap first)"
 kctl cluster-info >/dev/null || fail 'Kubernetes API is unavailable'
+trafficops_select_platform "$(dpkg --print-architecture)" || fail 'unsupported host architecture or missing platform pins'
+node_count=$(kctl get nodes --no-headers | wc -l | tr -d ' ')
+[[ $node_count == 1 ]] || fail "local image import requires exactly one Kubernetes node; found $node_count"
+node_platform=$(kctl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
+trafficops_require_node_arch "$PLATFORM_ARCH" "$node_platform" || fail 'local image import requires matching host and node architectures'
 
 SUDO=()
 [[ $EUID -eq 0 ]] || SUDO=(sudo)

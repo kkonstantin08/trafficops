@@ -33,7 +33,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py'
 
       - name: Check shell syntax
-        run: bash -n scripts/bootstrap.sh scripts/deploy.sh scripts/verify.sh scripts/validate_manifests.sh
+        run: bash -n scripts/platform.sh scripts/bootstrap.sh scripts/deploy.sh scripts/verify.sh scripts/validate_manifests.sh
 
       - name: Check browser JavaScript syntax
         run: |

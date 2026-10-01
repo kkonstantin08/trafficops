@@ -6,33 +6,33 @@ TrafficOps — локальная лаборатория эксплуатаци�
 
 | Компонент | Версия | Установка |
 | --- | --- | --- |
-| Ubuntu | 24.04, ARM64 | Проверяется bootstrap-скриптом; живой запуск ещё не подтверждён |
+| Ubuntu | 24.04, amd64 / arm64 | Code/CI поддерживают обе архитектуры; есть предоставленное live evidence для ARM64, clean-room запуск AMD64 ещё не выполнен |
 | Kubernetes / kubeadm / kubelet / kubectl | 1.36.5 (`1.36.5-1.1`) | Официальный репозиторий `pkgs.k8s.io` |
 | containerd | 2.3.6 | `containerd.io` из официального репозитория Docker |
 | Envoy Gateway | 1.9.1 | Официальный OCI Helm chart |
 | Flannel | 0.28.9 | Манифест официального GitHub-релиза |
-| Helm | 3.22.0 | Официальный ARM64 архив с закреплённой SHA-256 |
+| Helm | 3.22.0 | Официальные архивы amd64/arm64 с отдельными закреплёнными SHA-256 |
 | Docker Engine / Buildx | 29.8.1 / 0.37.1 | Сборка локального образа; Kubernetes использует containerd |
 | Demo app | Python 3.12.12 | Образ из корневого `Dockerfile`; базовый multi-arch образ закреплён по digest |
-| Prometheus | 3.14.0 | ARM64 digest в `deploy/versions.env`; scrape каждые 10 секунд, TSDB 24 часа / 512 MB |
-| Fluentd | 1.19.3 Debian | ARM64 digest в `deploy/versions.env`; встроенный `regexp` parser для строк CRI |
-| node-exporter | 1.12.1 | ARM64 digest; host metrics с read-only mount `/proc`, `/sys` и `/` |
-| kube-state-metrics | 2.20.0 | ARM64 digest; ограничен ресурсами pods, deployments и nodes |
+| Prometheus | 3.14.0 | Отдельные amd64/arm64 digests в `deploy/versions.env`; scrape каждые 10 секунд, TSDB 24 часа / 512 MB |
+| Fluentd | 1.19.3 Debian | Отдельные amd64/arm64 digests; встроенный `regexp` parser для строк CRI |
+| node-exporter | 1.12.1 | Отдельные amd64/arm64 digests; host metrics с read-only mount `/proc`, `/sys` и `/` |
+| kube-state-metrics | 2.20.0 | Отдельные amd64/arm64 digests; ограничен ресурсами pods, deployments и nodes |
 | Controller API | FastAPI 0.141.1 / Uvicorn 0.54.0 | Ограниченные действия в namespace `trafficops`, состояние операций в SQLite |
 
-Официальные release/tag сведения: [Prometheus](https://github.com/prometheus/prometheus/releases/tag/v3.14.0), [Fluentd image](https://github.com/fluent/fluentd-docker-image/releases/tag/v1.19.3-2.2), [node-exporter](https://github.com/prometheus/node_exporter/releases/tag/v1.12.1), [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/releases/tag/v2.20.0). Фактически проверенные ARM64 digests закреплены в [versions.env](deploy/versions.env). Используются штатные [Fluentd regexp parser](https://docs.fluentd.org/parser/regexp) и [JSON parser filter](https://docs.fluentd.org/filter/parser); список ресурсов kube-state-metrics ограничен поддерживаемым флагом `--resources`. Envoy proxy target использует owning-Gateway labels и порт `19001` согласно [руководству Envoy Gateway 1.9](https://gateway.envoyproxy.io/v1.9/tasks/observability/proxy-metric/).
+Официальные release/tag сведения: [Prometheus](https://github.com/prometheus/prometheus/releases/tag/v3.14.0), [Fluentd image](https://github.com/fluent/fluentd-docker-image/releases/tag/v1.19.3-2.2), [node-exporter](https://github.com/prometheus/node_exporter/releases/tag/v1.12.1), [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/releases/tag/v2.20.0). Проверенные platform-specific digests для amd64 и arm64 закреплены в [versions.env](deploy/versions.env). Используются штатные [Fluentd regexp parser](https://docs.fluentd.org/parser/regexp) и [JSON parser filter](https://docs.fluentd.org/filter/parser); список ресурсов kube-state-metrics ограничен поддерживаемым флагом `--resources`. Envoy proxy target использует owning-Gateway labels и порт `19001` согласно [руководству Envoy Gateway 1.9](https://gateway.envoyproxy.io/v1.9/tasks/observability/proxy-metric/).
 
-Kubernetes 1.36 и Envoy Gateway 1.9 совместимы по [официальной матрице Envoy Gateway](https://gateway.envoyproxy.io/news/releases/matrix/). Образы Envoy Gateway, Envoy proxy и Flannel проверены на наличие `linux/arm64` 30 сентября 2026. Демо-приложение использует стандартную библиотеку Python; controller API использует закреплённые FastAPI/Uvicorn зависимости из [requirements.lock](requirements.lock). Точный базовый образ Python закреплён по digest в [Dockerfile](Dockerfile).
+Kubernetes 1.36 и Envoy Gateway 1.9 совместимы по [официальной матрице Envoy Gateway](https://gateway.envoyproxy.io/news/releases/matrix/). Образы Envoy Gateway, Envoy proxy и Flannel имеют `linux/amd64` и `linux/arm64` descriptors; код выбирает observability digest по архитектуре единственного Kubernetes-узла. Демо-приложение использует стандартную библиотеку Python; controller API использует закреплённые FastAPI/Uvicorn зависимости из [requirements.lock](requirements.lock). Точный базовый образ Python закреплён по digest в [Dockerfile](Dockerfile).
 
 ## Требования к VM
 
-- Ubuntu Server 24.04, архитектура `arm64`.
+- Ubuntu Server 24.04, архитектура `amd64` или `arm64` (значение `dpkg --print-architecture`).
 - Preflight bootstrap требует не менее 2 vCPU и 3 GiB общей гостевой памяти. Этого условия недостаточно, чтобы заявить достаточность ресурсов для всех компонентов: расход на полной установке ещё не измерен.
 - Доступ в интернет к официальным репозиториям Ubuntu, Kubernetes, Docker, GitHub, OCI registry Docker Hub и `get.helm.sh`.
 - Свободные сетевые порты для Kubernetes API, kubelet, Flannel VXLAN и Envoy NodePort `30080`.
 - Пользователь с `sudo`.
 
-Обычный `make bootstrap` принимает только Ubuntu 24.04 ARM64. Для согласованной проверки на текущей Ubuntu 22.04.5 ARM64 VM предусмотрен отдельный `make bootstrap-dev`: он использует пакеты официального Docker репозитория для Jammy и не засчитывается как приёмка на Ubuntu 24.04. Не передавайте Noble-пакеты в Jammy.
+`make bootstrap` принимает Ubuntu 24.04 на `amd64` и `arm64`. Для согласованной проверки на текущей Ubuntu 22.04.5 ARM64 VM предусмотрен отдельный `make bootstrap-dev`: он использует пакеты официального Docker репозитория для Jammy и не засчитывается как приёмка на Ubuntu 24.04. Не передавайте Noble-пакеты в Jammy. Ubuntu 24.04 ARM64 имеет предоставленное live evidence; AMD64 пока подтверждён кодом и CI, чистая установка ещё не выполнена.
 
 Bootstrap отключает swap для kubelet, устанавливает точные версии зависимостей, создаёт одноузловой кластер `kubeadm` и ставит Flannel. Скрипт откажется менять существующий Kubernetes-кластер, если он не создан TrafficOps. Он не запускает `kubeadm reset` и не удаляет ресурсы. Параметры containerd не перезаписываются: при уже существующем несовместимом `/etc/containerd/config.toml` скрипт остановится и оставит файл без изменений. В dev режиме для Python 3.10 ставится Ubuntu пакет `python3-tomli` для проверки TOML; Python в образе приложения остаётся 3.12.12.
 
@@ -54,7 +54,7 @@ make verify
 
 Команды `make deploy` и `make verify` используют отдельный kubeconfig `~/.kube/trafficops.conf` и не меняют существующий `~/.kube/config`. При первом deploy создаётся пароль панели; он хранится в `~/.config/trafficops/admin-password`, а его PBKDF2 hash попадает в Kubernetes Secret. Файлы создаются вне Git с режимом `0600`. Сохраните пароль, он не выводится в терминал. При уже существующем Secret deploy не меняет учётные данные.
 
-`make deploy` собирает образ на ARM64 VM, импортирует его в namespace `k8s.io` containerd, ждёт готовности Deployments и Envoy Gateway, создаёт начальные Gateway-ресурсы и проверяет маршрут. Повторный запуск безопасен: он сохраняет уже существующие веса HTTPRoute и не перезапускает приложение без изменения исходников. Bootstrap также безопасен для повторного запуска на кластере, созданном этим проектом.
+`make deploy` проверяет совпадение архитектуры хоста и единственного Kubernetes-узла, собирает образ на VM и импортирует его в namespace `k8s.io` containerd. Скрипт ждёт готовности Deployments и Envoy Gateway, создаёт начальные Gateway-ресурсы и проверяет маршрут. Повторный запуск безопасен: он сохраняет уже существующие веса HTTPRoute и не перезапускает приложение без изменения исходников. Bootstrap также безопасен для повторного запуска на кластере, созданном этим проектом.
 
 ## Проверка HTTP через Gateway
 

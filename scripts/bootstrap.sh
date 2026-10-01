@@ -7,6 +7,8 @@ trap '[[ -z ${flannel_manifest:-} ]] || rm -f "$flannel_manifest"' EXIT
 # versions.env is maintained in this repository and contains only fixed assignments.
 # shellcheck disable=SC1091
 source "$ROOT_DIR/deploy/versions.env"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/platform.sh"
 
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 kctl() { kubectl --request-timeout=10s "$@"; }
@@ -38,7 +40,7 @@ source /etc/os-release
 [[ ${ID:-} == ubuntu ]] || fail 'requires Ubuntu Linux'
 [[ $# -le 1 ]] || fail 'usage: bootstrap.sh [--dev-ubuntu-22.04]'
 select_platform_packages "${1:-}"
-[[ $(dpkg --print-architecture) == arm64 ]] || fail 'this build is pinned and verified for ARM64'
+trafficops_select_platform "$(dpkg --print-architecture)" || fail 'unsupported host architecture or missing platform pins'
 cpu_count=$(nproc)
 memory_kib=$(awk '/MemTotal:/ { print $2 }' /proc/meminfo)
 (( cpu_count >= 2 )) || fail 'Kubernetes single-node control plane needs at least 2 CPUs'
@@ -99,7 +101,7 @@ EOF
 curl --fail --location --silent --show-error --max-time 30 https://download.docker.com/linux/ubuntu/gpg |
   gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
 chmod 0644 /etc/apt/keyrings/docker.gpg
-printf 'deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' "$DOCKER_UBUNTU_CODENAME" \
+printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' "$PLATFORM_ARCH" "$DOCKER_UBUNTU_CODENAME" \
   >/etc/apt/sources.list.d/docker.list
 apt-get update
 apt-get install -y \
@@ -186,12 +188,12 @@ systemctl restart containerd
 systemctl enable --now docker
 
 install -m 0755 -d /usr/local/lib/trafficops-tmp
-helm_archive="/tmp/helm-v${HELM_VERSION}-linux-arm64.tar.gz"
+helm_archive="/tmp/helm-v${HELM_VERSION}-${HELM_PLATFORM}.tar.gz"
 curl --fail --location --silent --show-error --max-time 60 \
-  "https://get.helm.sh/helm-v${HELM_VERSION}-linux-arm64.tar.gz" -o "$helm_archive"
-printf '%s  %s\n' "$HELM_ARM64_SHA256" "$helm_archive" | sha256sum --check --status || fail 'Helm download checksum mismatch'
-tar -xzf "$helm_archive" -C /usr/local/lib/trafficops-tmp linux-arm64/helm
-install -m 0755 /usr/local/lib/trafficops-tmp/linux-arm64/helm /usr/local/bin/helm
+  "https://get.helm.sh/helm-v${HELM_VERSION}-${HELM_PLATFORM}.tar.gz" -o "$helm_archive"
+printf '%s  %s\n' "$HELM_SHA256" "$helm_archive" | sha256sum --check --status || fail 'Helm download checksum mismatch'
+tar -xzf "$helm_archive" -C /usr/local/lib/trafficops-tmp "$HELM_PLATFORM/helm"
+install -m 0755 "/usr/local/lib/trafficops-tmp/$HELM_PLATFORM/helm" /usr/local/bin/helm
 rm -rf /usr/local/lib/trafficops-tmp "$helm_archive"
 flannel_manifest=$(mktemp)
 curl --fail --location --silent --show-error --max-time 60 \
@@ -254,5 +256,5 @@ else
 fi
 kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready nodes --all --timeout=180s
 kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Available deployment/coredns -n kube-system --timeout=180s
-printf 'Bootstrap ready: Ubuntu %s, arm64, Kubernetes %s, containerd %s, Flannel %s, Helm %s.\n' \
-  "$VERSION_ID" "$KUBERNETES_VERSION" "$CONTAINERD_VERSION" "$FLANNEL_VERSION" "$HELM_VERSION"
+printf 'Bootstrap ready: Ubuntu %s, %s, Kubernetes %s, containerd %s, Flannel %s, Helm %s.\n' \
+  "$VERSION_ID" "$PLATFORM_ARCH" "$KUBERNETES_VERSION" "$CONTAINERD_VERSION" "$FLANNEL_VERSION" "$HELM_VERSION"
