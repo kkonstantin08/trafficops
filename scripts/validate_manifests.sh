@@ -11,6 +11,7 @@ readonly GATEWAY_API_VERSION=1.4.1
 readonly GATEWAY_API_SHA256=73b91b77f6be023a8c92c969fc664e5bd3b1a28aea59eac9ebc904607354dad2
 readonly ENVOY_GATEWAY_COMMIT=0260554fd4f33b787aad77a129fc0ffeb00c1f29
 readonly ENVOY_CRD_SHA256=3e9ea2f348445e3798b02daf02bf024b0d944227cf5ef8a18da7f675a1afd223
+readonly ENVOY_BTP_CRD_SHA256=cd75a4c222df5487aa9ca8957b48bcc3255eb25de02ed9153faf620bc160f786
 readonly PYYAML_VERSION=6.0.3
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -41,8 +42,12 @@ curl --fail --location --silent --show-error --max-time 60 \
 curl --fail --location --silent --show-error --max-time 60 \
   "https://raw.githubusercontent.com/envoyproxy/gateway/${ENVOY_GATEWAY_COMMIT}/charts/gateway-helm/charts/crds/crds/generated/gateway.envoyproxy.io_envoyproxies.yaml" \
   -o "$tmp_dir/envoyproxy-crd.yaml"
+curl --fail --location --silent --show-error --max-time 60 \
+  "https://raw.githubusercontent.com/envoyproxy/gateway/${ENVOY_GATEWAY_COMMIT}/charts/gateway-helm/charts/crds/crds/generated/gateway.envoyproxy.io_backendtrafficpolicies.yaml" \
+  -o "$tmp_dir/backendtrafficpolicy-crd.yaml"
 check_sha256 "$GATEWAY_API_SHA256" "$tmp_dir/gateway-api-crds.yaml"
 check_sha256 "$ENVOY_CRD_SHA256" "$tmp_dir/envoyproxy-crd.yaml"
+check_sha256 "$ENVOY_BTP_CRD_SHA256" "$tmp_dir/backendtrafficpolicy-crd.yaml"
 
 python3 -m venv "$tmp_dir/venv"
 PIP_DEFAULT_TIMEOUT=15 PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -54,7 +59,8 @@ mkdir "$tmp_dir/schemas"
 (
   cd "$tmp_dir/schemas"
   FILENAME_FORMAT='{kind}_{version}' "$tmp_dir/venv/bin/python" \
-    "$tmp_dir/openapi2jsonschema.py" "$tmp_dir/gateway-api-crds.yaml" "$tmp_dir/envoyproxy-crd.yaml"
+    "$tmp_dir/openapi2jsonschema.py" "$tmp_dir/gateway-api-crds.yaml" "$tmp_dir/envoyproxy-crd.yaml" \
+    "$tmp_dir/backendtrafficpolicy-crd.yaml"
 )
 for schema in GatewayClass_v1 Gateway_v1 HTTPRoute_v1 EnvoyProxy_v1alpha1; do
   case "$schema" in
@@ -66,6 +72,8 @@ for schema in GatewayClass_v1 Gateway_v1 HTTPRoute_v1 EnvoyProxy_v1alpha1; do
   esac
   [[ -e "$tmp_dir/schemas/$schema.json" ]] || ln -s "$source_schema.json" "$tmp_dir/schemas/$schema.json"
 done
+[[ -e "$tmp_dir/schemas/BackendTrafficPolicy_v1alpha1.json" ]] || \
+  ln -s backendtrafficpolicy_v1alpha1.json "$tmp_dir/schemas/BackendTrafficPolicy_v1alpha1.json"
 
 mkdir "$tmp_dir/kubernetes-schemas"
 "$tmp_dir/venv/bin/python" - "$ROOT_DIR/deploy" "$tmp_dir/gvks.tsv" <<'PY'

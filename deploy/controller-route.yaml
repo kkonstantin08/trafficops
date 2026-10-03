@@ -23,3 +23,18 @@ spec:
       backendRefs:
         - name: trafficops-controller
           port: 8081
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: trafficops-panel-idle-timeout
+  namespace: trafficops
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: trafficops-panel
+  timeout:
+    http:
+      # Close idle upstream connections before Uvicorn's 30s keep-alive timeout.
+      connectionIdleTimeout: 15s

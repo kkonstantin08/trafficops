@@ -1,5 +1,6 @@
-import unittest
+import re
 import time
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,26 @@ class RouteGenerationTests(unittest.TestCase):
         route = (Path(__file__).resolve().parents[1] / "deploy/controller-route.yaml").read_text()
         self.assertIn("request: 100s", route)
         self.assertIn("backendRequest: 100s", route)
+
+    def test_controller_and_gateway_idle_timeouts_avoid_server_first_close(self):
+        root = Path(__file__).resolve().parents[1]
+        controller = (root / "deploy/controller.yaml").read_text()
+        self.assertIn("--timeout-keep-alive, \"30\"", controller)
+
+        route = (root / "deploy/controller-route.yaml").read_text()
+        policies = [document for document in route.split("---") if "kind: BackendTrafficPolicy" in document]
+        self.assertEqual(len(policies), 1)
+        policy = policies[0]
+        self.assertIn("apiVersion: gateway.envoyproxy.io/v1alpha1", policy)
+        self.assertIn("namespace: trafficops", policy)
+        self.assertRegex(
+            policy,
+            r"targetRefs:\s+- group: gateway\.networking\.k8s\.io\s+kind: HTTPRoute\s+name: trafficops-panel",
+        )
+        match = re.search(r"connectionIdleTimeout: (\d+)s", policy)
+        self.assertIsNotNone(match)
+        self.assertEqual(int(match.group(1)), 15)
+        self.assertLess(int(match.group(1)), 30)
 
     def test_replacement_must_be_ready_not_just_running(self):
         client = object.__new__(Kubernetes)
