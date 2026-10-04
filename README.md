@@ -164,10 +164,10 @@ Live HTTP security negative suite через Gateway выполнил 25 огр�
 - security suite — ограниченные negative tests, не полноценный penetration test; длительный soak/load test не выполнялся; TLS в demo не настроен;
 - pod delete разрешён ServiceAccount для любого pod в namespace `trafficops`; фильтр demo pods в приложении не является RBAC boundary;
 - транзитивные APT dependencies не все зафиксированы отдельными pins;
-- паспорт и финальный submission bundle ещё не финализированы.
+- финальный submission bundle ещё не подготовлен; паспорт финализирован.
 
 ## Инструкция и комплект сдачи
 
-Подробный порядок действий для Ubuntu Server 24.04: [docs/verification.md](docs/verification.md). [Источник черновика паспорта](docs/passport.md) и [PDF](output/pdf/TrafficOps-passport-draft.pdf) описывают текущую реализацию и открытые проверки. Черновик не является готовым комплектом сдачи: сведения участника и оставшиеся проверки ещё не внесены. Публичный репозиторий: [https://github.com/kkonstantin08/trafficops](https://github.com/kkonstantin08/trafficops).
+Подробный порядок действий для Ubuntu Server 24.04: [docs/verification.md](docs/verification.md). [Источник паспорта](docs/passport.md) и [Паспорт.pdf](output/pdf/Паспорт.pdf) описывают подтверждённую реализацию и ограничения; [проверка паспорта](docs/evidence/passport-final-2026-10-04.md) завершена. Submission bundle ещё не подготовлен. Публичный репозиторий: [https://github.com/kkonstantin08/trafficops](https://github.com/kkonstantin08/trafficops).
 
 CI запускает unit/syntax/schema checks и сборку приложения для AMD64/ARM64 без публикации: [.github/workflows/ci.yml](.github/workflows/ci.yml). Последний успешный CI перед этим обновлением README/runbook: [run 37154586966](https://github.com/kkonstantin08/trafficops/actions/runs/37154586966), для acceptance commit `53115d172f66c704b812fe4c8129c86e310b7866`. Подробные live результаты находятся в перечисленных выше AMD64 evidence; CI не заменяет runtime acceptance.

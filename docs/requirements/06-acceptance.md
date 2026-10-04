@@ -41,10 +41,10 @@
 | DOC-004 | Проверки Gateway, метрик и логов из README работают | выполнено | [команды проверки и запросы](../../README.md), [verify](../../scripts/verify.sh) | [make verify: Gateway HTTP 200, свежие Prometheus samples и access-маркер во Fluentd](../evidence/amd64-clean-deploy-verify-2026-10-03.md), 3 октября 2026 |
 | DOC-005 | README описывает заявленные улучшения и ограничения | выполнено | [улучшения и ограничения](../../README.md) | [README отражает AMD64 live results, canary, observability, security, namespace-wide pod RBAC, visual UI gap и transitive APT limitation](../../README.md), [main finalization](../evidence/main-finalization-2026-10-04.md), 4 октября 2026 |
 | DOC-006 | В публикуемом репозитории и истории нет секретов | выполнено | [генерация пароля вне Git](../../scripts/deploy.sh) | [current main tracked text files и repository history проверены на credential/key/token patterns; secret material не найден, исторические non-secret paths/private addresses классифицированы отдельно](../evidence/main-finalization-2026-10-04.md), 4 октября 2026 |
-| DOC-007 | Паспорт соответствует формату, страницам и размеру | частично | [черновик PDF](../../output/pdf/TrafficOps-passport-draft.pdf) | [черновик: 2 страницы, 31 КБ, обе страницы отрендерены и просмотрены](../evidence/orchestrator-local-2026-09-30.md) |
-| DOC-008 | Паспорт содержит архитектуру и подтверждаемые функции | частично | [источник паспорта](../passport.md) | [архитектура и функции описаны, live-проверки явно отмечены открытыми](../evidence/orchestrator-local-2026-09-30.md) |
-| DOC-009 | Паспорт содержит ревью и предложения развития | частично | [ревью и ограничения](../passport.md) | [ревью и следующие шаги внесены в черновик](../evidence/orchestrator-local-2026-09-30.md) |
-| DOC-010 | Каждое заявление паспорта связано с реализацией и проверкой | частично | [источник паспорта и ID](../passport.md) | [ID и локальные доказательства указаны; финальный паспорт после live-приёмки](../evidence/orchestrator-local-2026-09-30.md) |
+| DOC-007 | Паспорт соответствует формату, страницам и размеру | выполнено | [паспорт](../../output/pdf/Паспорт.pdf), [источник](../passport.md) | [финальный PDF: 3 страницы A4, 52 363 bytes; техническая и визуальная проверки PASS](../evidence/passport-final-2026-10-04.md), 4 октября 2026 |
+| DOC-008 | Паспорт содержит архитектуру и подтверждаемые функции | выполнено | [паспорт](../../output/pdf/Паспорт.pdf), [источник](../passport.md) | [страницы 1–2: архитектура, схема, обязательные функции и улучшения с назначением и проверкой](../evidence/passport-final-2026-10-04.md), 4 октября 2026 |
+| DOC-009 | Паспорт содержит ревью и предложения развития | выполнено | [паспорт](../../output/pdf/Паспорт.pdf), [источник](../passport.md) | [страница 3: сильная сторона, сложное решение с альтернативами и развитие; каждый пункт не более трёх предложений](../evidence/passport-final-2026-10-04.md), 4 октября 2026 |
+| DOC-010 | Каждое заявление паспорта связано с реализацией и проверкой | выполнено | [паспорт](../../output/pdf/Паспорт.pdf), [источник](../passport.md) | [claim-by-claim review: implementation, live AMD64 evidence и main CI; ограничения сохранены, неподтверждённые работающие claims не обнаружены](../evidence/passport-final-2026-10-04.md), 4 октября 2026 |
 
 ## Дополнительные возможности, заявленные проектом
 
@@ -75,5 +75,5 @@ Live-функции оцениваются по runtime evidence. Отдельн
 ## Текущее состояние перед финализацией
 
 - Clean Ubuntu 24.04 AMD64 bootstrap — PASS; deploy/verify — PASS; полный canary со здоровым завершением и автоматическим rollback после исправления controller idle timeout — PASS; idempotence — PASS; HTTP security negative tests — PASS; RBAC boundary tests — PASS.
-- README/runbook актуализированы. Новая AMD64 visual UI verification намеренно не выполнялась; паспорт и submission bundle остаются незавершёнными.
+- README/runbook актуализированы; паспорт финализирован, DOC-007–010 — PASS. Новая AMD64 visual UI verification намеренно не выполнялась; submission bundle остаётся незавершённым.
 - Проверенная implementation lineage перенесена fast-forward в `main`; public default clone — PASS, post-main CI — PASS ([finalization evidence](../evidence/main-finalization-2026-10-04.md)).

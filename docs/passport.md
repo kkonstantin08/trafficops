@@ -1,37 +1,80 @@
-# TrafficOps - черновик паспорта
+# TrafficOps
 
-Черновик обновлён 1 октября 2026. Это черновик, не комплект сдачи: сведения участника не внесены, отдельные проверки остаются открытыми. Публичный репозиторий: https://github.com/kkonstantin08/trafficops.
+Автономный стенд безопасного canary-релиза через Kubernetes Gateway API
 
 ## Назначение
 
-Лаборатория эксплуатации веб-сервиса для кейса DevOps MTC ENGINEER HACK. Общий сценарий: рабочий сервис, пробный релиз, контролируемые HTTP 500, диагностика, автоматический откат и восстановление.
+Стенд объединяет развёртывание веб-сервиса, пробный выпуск v2, контролируемый сбой, диагностику и откат. Эксперт воспроизводит сценарий из публичного main командами `make bootstrap`, `make deploy`, `make verify` и `make verify-scenario`.
 
-## Архитектура
+Репозиторий: https://github.com/kkonstantin08/trafficops
 
-Ubuntu 24.04 ARM64 -> kubeadm / containerd / Flannel -> Envoy Gateway -> demo-v1, demo-v2 и FastAPI + HTML/CSS/JavaScript панель.
+## Архитектура и состав
 
-Prometheus собирает метрики приложения, Envoy, node-exporter и kube-state-metrics. Fluentd читает CRI access/error-логи и сохраняет их в файловую точку назначения. Управляющий API читает Prometheus и эти файлы; SQLite хранит операции, состояние и сессии. Данные находятся на локальных PV одного узла.
+Кластер: Ubuntu 24.04, kubeadm, Kubernetes 1.36.5, containerd 2.3.6 и Flannel 0.28.9; один узел. Поддерживаются AMD64/ARM64; чистая приёмочная среда - Ubuntu 24.04.4 AMD64, 4 CPU и около 3.8 GiB RAM.
 
-## Реализация обязательной части
+Вход: Envoy Gateway 1.9.1, GatewayClass, Gateway и HTTPRoute; NodePort 30080. Weighted backends распределяют трафик между demo-v1 и demo-v2; отдельный маршрут ведёт к FastAPI controller и статической HTML/CSS/JS панели.
 
-K8S-001: bootstrap одноузлового kubeadm. APP-001-004: компактный Python HTTP-сервис, проверяемый JSON и структурированные логи. GW-001-004: Envoy Gateway и HTTPRoute с несколькими путями. MON-001-002: Prometheus со scrape-конфигурацией. LOG-001-002: Fluentd и поиск контрольного маркера в назначении. DEP-003-006: shell, Makefile, закреплённые версии и повторный запуск. Наличие реализации не заменяет live-приёмку.
+Наблюдаемость: Prometheus развёрнут Kubernetes-манифестами; пять scrape jobs опрашивают demo-v1, demo-v2, Envoy proxy, node-exporter и kube-state-metrics с интервалом 10 секунд. Fluentd читает CRI access/error logs и сохраняет их в локальные persistent files; диагностика ищет уникальный маркер запроса.
 
-## Расширения
+Состояние: SQLite на local PV хранит операции, release state и sessions. Controller читает Prometheus и log files, сохраняет состояние и выполняет ограниченные действия через Kubernetes API.
 
-Панель отправляет ограниченные серии трафика через Gateway и выполняет фиксированные операции в namespace приложения. Canary оценивает только v2: окно 60 секунд, минимум 30 запросов, HTTP 5xx больше 5%, две проверки подряд через 10 секунд. Старые или отсутствующие метрики блокируют расширение релиза. Ручной откат не зависит от Prometheus. Успех отката требует подтверждения HTTPRoute и ответа стабильной версии через Gateway. Ошибка отката сохраняется явно и не запускает цикл повторных релизов.
+Автоматизация: Makefile, shell scripts и Kubernetes manifests; Helm устанавливает Envoy Gateway. Основные версии, Helm checksums и platform-specific image digests закреплены.
 
-Управление защищено сессией, проверками Origin и CSRF; пароль в репозитории отсутствует, Kubernetes Secret содержит PBKDF2-хеш. RBAC ограничивает ресурсы; API не принимает произвольные URL, команды или имена ресурсов.
+## Схема потоков
 
-## Проверки и статус
+Пользовательские запросы проходят через Gateway; метрики и логи сохраняются отдельно от управляющего состояния.
 
-Проведены локальные проверки Python, shell и конфигурации, а также просмотр панели и входа в браузере на Mac. Доказательства и ограничения: docs/evidence/. Локальные тесты используют подставные Kubernetes/Prometheus ответы и не доказывают работу кластера.
+## Обязательная часть
 
-GitHub Actions подтвердил 31 тест, 36 Kubernetes-схем и сборку приложения AMD64/ARM64. Доказательство: docs/evidence/public-repository-2026-10-01.md.
+| Что реализовано | Зачем | Как проверено |
+| --- | --- | --- |
+| kubeadm single-node; Ubuntu 24.04 AMD64/ARM64 bootstrap | Автономный запуск из публичного клона | Clean Ubuntu 24.04.4 AMD64: bootstrap PASS, node Ready, без ручных Kubernetes fixes |
+| Python demo-v1/v2; /healthz, /metrics, structured logs | Проверяемый сервис двух версий | Gateway HTTP 200 и ожидаемый version JSON |
+| Envoy Gateway; GatewayClass, Gateway, HTTPRoute; weighted backends | Маршрутизация и пробное обновление | Accepted/Programmed/ResolvedRefs и реальные HTTP-запросы через Gateway |
+| Prometheus; пять scrape jobs | Оценка состояния и доли ошибок v2 | Все targets up=1, свежие samples и реальные app counters |
+| Fluentd; CRI parsing; persistent log files | Диагностика конкретного запроса | Маркер найден в точке назначения после Gateway request |
+| make bootstrap / deploy / verify | Повторяемое развёртывание | Clean deploy и повторный запуск PASS; identity, storage и state сохранены |
 
-Пользователь предоставил журнал Ubuntu 24.04 ARM64 от 1 октября 2026: deploy, verify и verify-scenario прошли. Подтверждены HTTP через Gateway, свежие Prometheus samples, доставка Fluentd, доступность панели/API, релиз v2, ручной и автоматический rollback до v1, очистка и повторный deploy. Источник: docs/evidence/vm-ubuntu24-2026-10-01.md. Агент не подключался к VM; это результаты предоставленного журнала. Открыты чистая установка кластера на этой ОС, восстановление pod, ручная проверка панели, негативные Origin/CSRF сценарии в VM, сохранность старых данных и расход RAM/диска. Инструкция: docs/verification.md. Статусы требований: docs/requirements/06-acceptance.md.
+## Реализованные улучшения
 
-## Ревью и ограничения
+Canary: начальные веса 90/10, ручная настройка, завершение на v2, ручной и автоматический rollback. Политика оценивает только v2: полное окно 60 секунд после начала canary, минимум 30 запросов, 5xx >5%, проверки каждые 10 секунд и два превышения подряд; stale/unknown metrics блокируют продвижение. Успех rollback требует подтверждённого маршрута и ответа v1 через Gateway.
 
-Оркестратор самостоятельно проверяет крупные этапы. При просмотре исправлены проверка исходных timestamps, отсутствие 5xx-рядов у здорового canary, устаревшие условия HTTPRoute, формат хеша из Secret и ошибки подтверждения отката. Журнал пользователя подтверждает интеграционный сценарий релиза и отката.
+Сбой: контролируемые HTTP 500 на v2 демонстрируют automatic rollback. Механизм pod restart реализован; live recovery ранее подтверждён на ARM64, отдельно на новой AMD64 VM не повторялся.
 
-Один узел не обеспечивает высокой доступности. Local PV не защищают от потери диска и не задают дисковую квоту. HTTP-панель предназначена для локальной лаборатории; публичный доступ требует TLS и отдельной настройки. Следующий шаг - завершить оставшиеся проверки и подготовить финальный паспорт и архив.
+Защита: PBKDF2 password hash, пароль вне Git, session cookie HttpOnly/SameSite=Strict, Origin/CSRF и bounded API inputs. HTTPRoute/Deployment/ConfigMap grants ограничены named resources; pod recovery имеет namespace-wide get/list/delete pods в trafficops. Фильтр demo pods в controller не является Kubernetes RBAC boundary.
+
+CI: GitHub Actions проверяет 41 unit test, shell/JS, 37 manifest resources и сборку AMD64/ARM64. Main CI 37192333821 завершился success; публикация main и unauthenticated default clone подтверждены.
+
+## Результаты проверки
+
+3 октября 2026: clean bootstrap, deploy/verify, healthy canary, v2 completion, manual rollback, faulted canary и automatic rollback - PASS; full scenario прошёл после исправления controller connection-idle timeout. Idempotence - PASS; HTTP security negative suite - 25 requests PASS; RBAC boundary suite - 34 checks PASS. Evidence и точные runtime revisions: docs/evidence/amd64-*.md; main promotion и public clone: docs/evidence/main-finalization-2026-10-04.md.
+
+## Инженерное ревью
+
+### Сильная техническая сторона
+
+Единый воспроизводимый сценарий связывает deploy, canary, наблюдаемость, сбой, automatic rollback и проверку через реальный Gateway API. Решения опираются на фактические Prometheus samples и Fluentd logs, а восстановление подтверждается ответом стабильной версии сервиса.
+
+### Самое сложное решение и альтернативы
+
+Для безопасного rollback отсутствие метрик нельзя считать нулём ошибок или смешивать старые samples с текущим canary: нужны полное окно, минимальная выборка и две последовательные проверки превышения. Один threshold check проще, но чувствительнее к шуму; фиксированный таймер без метрик хуже отражает состояние новой версии. Service mesh или Argo Rollouts дают больше возможностей, но для автономного одноузлового стенда выбран ограниченный controller с явно проверяемой политикой.
+
+### Развитие: multi-region / edge rollout
+
+Следующий этап - постепенное обновление по площадкам и region-aware Gateway routing в нескольких кластерах. Потребуются multi-cluster control plane, внешние метрики и state, общая наблюдаемость.
+
+### Развитие: SLO-based rollback
+
+Политику можно расширить latency, availability и traffic volume для SLO телеком-сервисов. Потребуются более длинная история метрик, настраиваемые политики и, при распределённой среде, Prometheus federation или remote storage.
+
+### Развитие: event / audit integration
+
+Release и rollback incidents можно передавать во внешнюю NOC/incident system. Потребуются authenticated webhook или event bus, внешняя интеграция и централизованное состояние.
+
+## Ограничения
+
+Один узел не обеспечивает HA; local PV не защищают от потери диска. HTTP demo не имеет TLS; pod delete RBAC действует на весь namespace trafficops, транзитивные APT packages не полностью pinned. Новая AMD64 visual browser verification намеренно не выполнялась; HTTP/API и runtime-пути проверены, визуальный рендер панели не заявляется.
+
+## Воспроизведение и доказательства
+
+Порядок установки и проверки: README.md и docs/verification.md; статусы требований: docs/requirements/06-acceptance.md. Runtime evidence содержит условия, revisions и фактические результаты; паспорт описывает подтверждённую функциональную линию main, а не заменяет эти доказательства.
