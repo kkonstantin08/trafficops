@@ -36,7 +36,7 @@ sudo apt-get update
 sudo apt-get install -y git make curl
 git clone https://github.com/kkonstantin08/trafficops.git
 cd trafficops
-make bootstrap-dev
+make bootstrap
 make deploy
 make verify
 ```
