@@ -55,7 +55,7 @@ make deploy
 make verify
 ```
 
-На момент этой документации AMD64 clean-room evidence и изменения находятся в `fix/amd64-bootstrap`; эта ветка ещё не слита в `main` (`main` на `20e5d247b4b044cec80f1a3c3f03abd940c3574c`). Обычная команда `git clone` использует default branch и до merge не получает tested AMD64 revision; команда ниже описывает воспроизведение текущей проверенной ветки, а не утверждает, что submission `main` финализирован.
+Проверенная AMD64 implementation lineage перенесена fast-forward в `main`; обычный public clone теперь получает основной воспроизводимый путь. Clean-room runtime evidence относится к functional revision lineage, испытанной до documentation finalization ([post-merge evidence](docs/evidence/main-finalization-2026-10-04.md)).
 
 На чистой Ubuntu 24.04.4 AMD64 `make deploy` завершился с exit 0; встроенный verify и отдельный `make verify` прошли. GatewayClass был `Accepted=True`, Gateway — `Accepted=True/Programmed=True`, HTTPRoutes — `Accepted=True/ResolvedRefs=True`; запрос через Gateway вернул HTTP 200, его access-маркер найден в Fluentd, все пять Prometheus jobs имели свежие `up=1`, health panel/controller вернул HTTP 200. См. [clean deploy/verify evidence](docs/evidence/amd64-clean-deploy-verify-2026-10-03.md).
 
@@ -164,7 +164,7 @@ Live HTTP security negative suite через Gateway выполнил 25 огр�
 - security suite — ограниченные negative tests, не полноценный penetration test; длительный soak/load test не выполнялся; TLS в demo не настроен;
 - pod delete разрешён ServiceAccount для любого pod в namespace `trafficops`; фильтр demo pods в приложении не является RBAC boundary;
 - транзитивные APT dependencies не все зафиксированы отдельными pins;
-- README/runbook ветки `fix/amd64-bootstrap` обновляются отдельно; эта ветка ещё не слита в `main`, финальная submission не завершена.
+- паспорт и финальный submission bundle ещё не финализированы.
 
 ## Инструкция и комплект сдачи
 

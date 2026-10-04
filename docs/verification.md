@@ -41,7 +41,7 @@ make deploy
 make verify
 ```
 
-На момент этой документации AMD64 clean-room результат и эти изменения находятся в `fix/amd64-bootstrap`; ветка ещё не слита в `main`. Команды описывают текущую проверенную реализацию этой ветки и не утверждают, что default `main` уже содержит финальную реализацию.
+Основной public `git clone` получает `main`, содержащий проверенную AMD64 implementation lineage. Команды installation block являются default path ([post-merge evidence](evidence/main-finalization-2026-10-04.md)).
 
 Clean bootstrap был выполнен на новой Ubuntu 24.04.4 AMD64 VM: Docker/containerd, kubeadm/kubelet/kubectl и Helm изначально отсутствовали; вручную были установлены только `git`, `make`, `curl`. `make bootstrap` завершился с exit 0, node стал Ready, Flannel/CoreDNS были healthy; ручных исправлений не было ([bootstrap evidence](evidence/amd64-clean-bootstrap-2026-10-03.md)).
 
